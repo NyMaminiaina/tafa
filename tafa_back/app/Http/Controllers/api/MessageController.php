@@ -46,73 +46,115 @@ class MessageController extends Controller
     }
 
     // Récupère les messages entre l'utilisateur connecté et un autre utilisateur et les marque comme lus
-    public function getMessages(int $receiverId): JsonResponse
-    {
-        /** @var \App\Models\User|null $user */
-        $user = Auth::user();
-        $userId = $user->id;
+ public function getMessages(int $receiverId, Request $request): JsonResponse
+{
+    /** @var \App\Models\User|null $user */
+    $user = Auth::user();
+    $userId = $user->id;
 
-        // Mettre à jour ma dernière activité
-        if ($user) {
-            $user->last_seen = now();
-            $user->save();
-        }
+    // Mettre à jour ma dernière activité
+    if ($user) {
+        $user->last_seen = now();
+        $user->save();
+    }
 
-        $echange = Echange::findBetween($userId, $receiverId);
+    $echange = Echange::findBetween($userId, $receiverId);
 
-        $messages = collect();
-
-        if ($echange) {
-            $messages = Message::where('id_echange', $echange->id)
-                ->with('relatedUser.profile.images')
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->filter(function ($msg) use ($userId) {
-                    $deletedFor = json_decode($msg->deleted_for_users, true);
-
-                    if (!is_array($deletedFor)) {
-                        $deletedFor = [];
-                    }
-
-                    return !in_array($userId, $deletedFor);
-                })
-                ->values()
-                ->map(function ($msg) use ($userId) {
-                    return [
-                        'id' => $msg->id,
-                        'content' => $msg->content,
-                        'id_echange' => $msg->id_echange,
-                        'sender_id' => $msg->sender_id,
-                        'receiver_id' => $msg->receiver_id,
-                        'related_user_id' => $msg->related_user_id,
-                        'related_user' => $msg->relatedUser ? [
-                            'id' => $msg->relatedUser->id,
-                            'name' => $msg->relatedUser->name,
-                            'firstname' => $msg->relatedUser->firstname,
-                            'avatar' => $msg->relatedUser->profile?->images->where('is_primary', true)->first()?->path,
-                        ] : null,
-                        'is_mine' => $msg->sender_id == $userId,
-                        'created_at' => $msg->created_at,
-                        'read_at' => $msg->read_at
-                    ];
-                });
-
-            // Marquer les messages entrants comme lus
-            Message::where('id_echange', $echange->id)
-                ->where('sender_id', $receiverId)
-                ->where('receiver_id', $userId)
-                ->whereNull('read_at')
-                ->update(['read_at' => now()]);
-        }
-
-        $otherUser = User::find($receiverId);
-
+    if (!$echange) {
         return response()->json([
-            'messages' => $messages,
-            'id_echange' => $echange?->id,
-            'last_seen' => $otherUser?->last_seen
+            'messages' => [],
+            'id_echange' => null,
+            'last_seen' => null,
+            'has_more' => false,
+            'oldest_id' => null,
         ]);
     }
+
+    $query = Message::where('id_echange', $echange->id)
+        ->with('relatedUser.profile.images');
+
+    $beforeId = $request->query('before_id');
+
+    if ($beforeId) {
+        // Charger les messages plus anciens que l'ID donné
+        $beforeMessage = Message::find($beforeId);
+        if (!$beforeMessage) {
+            return response()->json(['error' => 'Message non trouvé'], 404);
+        }
+
+        $query->where('created_at', '<', $beforeMessage->created_at)
+              ->orderBy('created_at', 'desc')
+              ->limit(20);
+    } else {
+        // Charger les 20 derniers messages (les plus récents)
+        $query->orderBy('created_at', 'desc')
+              ->limit(20);
+    }
+
+    $messages = $query->get()
+        ->filter(function ($msg) use ($userId) {
+            $deletedFor = json_decode($msg->deleted_for_users, true);
+            return !is_array($deletedFor) || !in_array($userId, $deletedFor);
+        })
+        ->map(function ($msg) use ($userId) {
+            return [
+                'id' => $msg->id,
+                'content' => $msg->content,
+                'id_echange' => $msg->id_echange,
+                'sender_id' => $msg->sender_id,
+                'receiver_id' => $msg->receiver_id,
+                'related_user_id' => $msg->related_user_id,
+                'related_user' => $msg->relatedUser ? [
+                    'id' => $msg->relatedUser->id,
+                    'name' => $msg->relatedUser->name,
+                    'firstname' => $msg->relatedUser->firstname,
+                    'avatar' => $msg->relatedUser->profile?->images->where('is_primary', true)->first()?->path,
+                ] : null,
+                'is_mine' => $msg->sender_id == $userId,
+                'created_at' => $msg->created_at,
+                'read_at' => $msg->read_at
+            ];
+        })
+        ->values();
+
+    // Pour le rendu, on veut l'ordre ascendant
+    if ($beforeId) {
+        // On a récupéré en DESC, on inverse
+        $messages = $messages->reverse()->values();
+    } else {
+        // On a récupéré les derniers en DESC, on les remet en ASC pour l'affichage
+        $messages = $messages->sortBy('created_at')->values();
+    }
+
+    // Déterminer s'il y a encore plus de messages anciens
+    $hasMore = false;
+    $oldestId = null;
+    if ($messages->isNotEmpty()) {
+        $oldestId = $messages->first()['id']; // le plus ancien du lot (après remise en ordre)
+        $oldestCreatedAt = $messages->first()['created_at'];
+
+        $hasMore = Message::where('id_echange', $echange->id)
+            ->where('created_at', '<', $oldestCreatedAt)
+            ->exists();
+    }
+
+    // Marquer les messages entrants comme lus (inchangé)
+    Message::where('id_echange', $echange->id)
+        ->where('sender_id', $receiverId)
+        ->where('receiver_id', $userId)
+        ->whereNull('read_at')
+        ->update(['read_at' => now()]);
+
+    $otherUser = User::find($receiverId);
+
+    return response()->json([
+        'messages' => $messages,
+        'id_echange' => $echange->id,
+        'last_seen' => $otherUser?->last_seen,
+        'has_more' => $hasMore,
+        'oldest_id' => $oldestId,
+    ]);
+}
 
     // Permet d'envoyer un message à un autre utilisateur (crée l'échange/room si besoin)
     public function sendMessage(Request $request): JsonResponse

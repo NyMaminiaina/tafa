@@ -66,6 +66,7 @@ const Messages: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null); // Pour la gestion du scroll
 
   // --- responsive ---
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -100,6 +101,11 @@ const Messages: React.FC = () => {
   const [lastActivity, setLastActivity] = useState<string | null>(null);
   const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
 
+  // Pagination
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [oldestMessageId, setOldestMessageId] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const getDisplayName = (user: { firstname: string | null; name: string }) => {
     return [user.firstname, user.name]
       .filter(Boolean)
@@ -114,15 +120,18 @@ const Messages: React.FC = () => {
     return `${cleanBase}${cleanPath}`;
   };
 
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
   // Initialisation
   useEffect(() => {
     fetchConversations();
     fetchLimits();
   }, []);
 
-  // On garde une référence toujours à jour de "conversations",
-  // pour ne PAS avoir à mettre "conversations" dans les dépendances
-  // du useEffect ci-dessous (sinon le polling le redéclencherait sans arrêt)
   const conversationsRef = useRef(conversations);
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -146,17 +155,11 @@ const Messages: React.FC = () => {
     const handleRefresh = () => {
       fetchConversations();
     };
-
     window.addEventListener("navbar-message-update", handleRefresh);
-
     return () => {
       window.removeEventListener("navbar-message-update", handleRefresh);
     };
   }, []);
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const handleStartConversation = async (userId: number) => {
     try {
@@ -218,13 +221,47 @@ const Messages: React.FC = () => {
       const data = await getMessages(conv.id);
       setMessages(data.messages || []);
       setLastActivity(data.last_seen || null);
+      setHasMoreMessages(data.has_more || false);
+      setOldestMessageId(data.oldest_id || null);
+
       if (!data.messages || data.messages.length === 0) {
         setIsNewConversation(true);
       } else {
         setIsNewConversation(false);
+        scrollToBottom();
       }
     } catch (error) {
       console.error("Erreur messages:", error);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (!activeConversation || !oldestMessageId || loadingMore) return;
+    setLoadingMore(true);
+
+    try {
+      const data = await getMessages(activeConversation.id, oldestMessageId);
+      if (data.messages && data.messages.length > 0) {
+        const container = chatContainerRef.current;
+        const previousScrollHeight = container?.scrollHeight || 0;
+
+        setMessages(prev => [...data.messages, ...prev]);
+
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - previousScrollHeight;
+          }
+        });
+
+        setHasMoreMessages(data.has_more || false);
+        setOldestMessageId(data.oldest_id || null);
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (error) {
+      console.error("Erreur chargement plus anciens:", error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -256,6 +293,8 @@ const Messages: React.FC = () => {
         setMessages(prev => prev.map(msg =>
           msg.id === tempMessage.id ? { ...response.message, is_mine: true } : msg
         ));
+        // setHasMoreMessages(false); // premier message, pas d'anciens
+        scrollToBottom();
         fetchConversations();
         fetchLimits();
       }
@@ -398,7 +437,7 @@ const Messages: React.FC = () => {
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // Rafraîchissement intelligent des messages (uniquement si conversation active)
+  // Rafraîchissement intelligent des messages (polling) – corrigé pour conserver les anciens messages
   useEffect(() => {
     if (!activeConversation) return;
 
@@ -407,8 +446,13 @@ const Messages: React.FC = () => {
     const pollMessages = async () => {
       try {
         const data = await getMessages(activeConversation.id);
-        setMessages(data.messages || []);
+        setMessages(prev => {
+          const newIds = new Set((data.messages as Message[]).map((m: Message) => m.id));
+          const keptOlder = prev.filter(m => !newIds.has(m.id)); // garde les messages plus anciens déjà chargés
+          return [...keptOlder, ...data.messages];
+        });
         setLastActivity(data.last_seen || null);
+        // On ne touche pas à hasMoreMessages, la pagination manuelle prime
       } catch (error) {
         console.error("Erreur refresh messages:", error);
       }
@@ -464,6 +508,7 @@ const Messages: React.FC = () => {
         <div className="h-full w-full max-w-[1800px] mx-auto flex gap-4 md:gap-6 px-3 md:px-6">
 
           {/* ============= LISTE DES CONVERSATIONS ============= */}
+          {/* (inchangé) */}
           <div
             className={`
               ${isMobile && activeConversation ? 'hidden' : 'w-full md:w-[380px] lg:w-[420px] xl:w-[450px]'}
@@ -645,7 +690,23 @@ const Messages: React.FC = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 theme-bg-secondary custom-scrollbar">
+                <div
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 theme-bg-secondary custom-scrollbar"
+                >
+                  {/* Bouton "Afficher précédent" */}
+                  {hasMoreMessages && (
+                    <div className="flex justify-center py-2">
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="px-4 py-2 bg-gray-100 dark:bg-zinc-700 rounded-full text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors disabled:opacity-50"
+                      >
+                        {loadingMore ? "Chargement..." : "Afficher les messages précédents"}
+                      </button>
+                    </div>
+                  )}
+
                   {isNewConversation ? (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                       <img
@@ -797,7 +858,7 @@ const Messages: React.FC = () => {
                   <div ref={scrollRef} />
                 </div>
 
-                {/* Input Zone */}
+                {/* Input Zone (inchangée) */}
                 {activeConversation && activeConversation.other_user.is_system ? (
                   <div className="p-4 border-t theme-border text-center py-6">
                     <p className="text-sm text-gray-500">
@@ -834,6 +895,7 @@ const Messages: React.FC = () => {
                             handleSendMessage();
                           }
                         }}
+                        onFocus={scrollToBottom}
                         placeholder={
                           isBlocked
                             ? "Utilisateur bloqué"
@@ -869,10 +931,9 @@ const Messages: React.FC = () => {
             )}
           </div>
 
-          {/* ============= BLOC PROFIL (desktop) ============= */}
+          {/* ============= BLOC PROFIL (desktop) (inchangé) ============= */}
           {showProfileInfo && activeConversation && !isMobile && !activeConversation.other_user.is_system && (
             <div className="hidden xl:flex xl:w-[420px] theme-bg-primary rounded-3xl shadow-sm border theme-border overflow-hidden flex-col h-full">
-              {/* contenu inchangé */}
               <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 <div className="flex flex-col items-center text-center mb-6">
                   <img
@@ -946,7 +1007,7 @@ const Messages: React.FC = () => {
         </div>
       </main>
 
-      {/* ... (le reste du code reste inchangé : badge, modales, toast) ... */}
+      {/* Badge / Modales / Toast (inchangés) */}
       {remainingMessages !== null && (
         <div
           className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 text-white font-semibold text-sm"

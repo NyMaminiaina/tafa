@@ -246,9 +246,13 @@ export async function getConversations() {
 }
 
 // Récupérer les messages par ID d'utilisateur
-export async function getMessages(contactId: number) {
+export async function getMessages(contactId: number, beforeId?: number) {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${API_URL}/messages/${contactId}`, {
+  const params = new URLSearchParams();
+  if (beforeId) params.append("before_id", String(beforeId));
+
+  const url = `${API_URL}/messages/${contactId}?${params.toString()}`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.json();
@@ -270,22 +274,6 @@ export async function sendMessage(data: { receiver_id: number; content: string }
   return res.json();
 }
 
-
-// // Start or get a conversation with a user
-// export async function startConversation(userId: number) {
-//   const token = localStorage.getItem("token");
-
-//   const res = await fetch(`${API_URL}/conversations/start/${userId}`, {
-//     method: "POST",
-//     headers: {
-//       Authorization: `Bearer ${token}`,
-//     },
-//   });
-
-//   return res.json();
-// }
-// api.ts
-// api.ts
 export async function startConversation(receiver_id: number) {
   const token = localStorage.getItem("token");
 
@@ -300,20 +288,6 @@ export async function startConversation(receiver_id: number) {
 
   return res.json();
 }
-// export async function startConversation(userId: number, data: { message: string }) {
-//   const token = localStorage.getItem("token");
-
-//   const res = await fetch(`${API_URL}/conversations/start/${userId}`, {
-//     method: "POST",
-//     headers: {
-//       "Content-Type": "application/json", // CRITIQUE : Permet à MariaDB de recevoir le texte
-//       "Authorization": `Bearer ${token}`,
-//     },
-//     body: JSON.stringify(data), // Envoie le contenu réel du message
-//   });
-
-//   return res.json();
-// }
 
 // Mark all messages in a conversation as read
 export async function markConversationAsRead(conversationId: number) {
