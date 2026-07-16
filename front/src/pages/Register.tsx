@@ -64,6 +64,8 @@ function Register() {
 
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperIndex, setCropperIndex] = useState<number | null>(null);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailFormatValid = email.length === 0 || emailRegex.test(email);
 
   const availableInterests = [
     { id: 1, name: "Sport", icon: <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />, color: "text-red-500" },
@@ -272,6 +274,7 @@ function Register() {
   const isStep2Complete = status && goal && interests.length >= 3;
   const isStep3Complete =
     email &&
+    emailRegex.test(email) &&
     !emailError &&
     password &&
     password === confirm &&
@@ -853,7 +856,7 @@ function Register() {
                 </p>
 
                 {/* 🌟 Grille responsive modifiée */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-3">
                   {availableInterests.map((item) => {
                     const active = interests.includes(item.id.toString());
                     return (
@@ -932,15 +935,31 @@ function Register() {
                       setEmailError("");
                     }}
                     onBlur={() => {
-                      if (email.includes("@")) {
+                      if (emailRegex.test(email)) {
                         checkEmail(email);
                       }
                     }}
-                    style={inputStyle}
+                    style={{
+                      ...inputStyle,
+                      border: email.length > 0 && !isEmailFormatValid ? "2px solid #EF4444" : "1px solid var(--border-color)",
+                    }}
                   />
                 </div>
-                {emailError && <p className="text-red-500 text-xs mt-1 ml-2">{emailError}</p>}
-                {checkingEmail && <p className="text-gray-400 text-xs mt-1 ml-2">Vérification...</p>}
+
+                {/* Instant format error, mirrors the confirm-password pattern */}
+                {email.length > 0 && !isEmailFormatValid && (
+                  <p className="text-red-500 text-xs mt-1 ml-2">
+                    Format d'email invalide.
+                  </p>
+                )}
+
+                {/* Async duplicate-check error (only shown once format is valid) */}
+                {isEmailFormatValid && emailError && (
+                  <p className="text-red-500 text-xs mt-1 ml-2">{emailError}</p>
+                )}
+                {isEmailFormatValid && checkingEmail && (
+                  <p className="text-gray-400 text-xs mt-1 ml-2">Vérification...</p>
+                )}
               </div>
 
               <div className="mb-5 relative">
@@ -973,7 +992,11 @@ function Register() {
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Confirmez votre mot de passe"
                   className="w-full pl-4 pr-10 py-3.5 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition outline-none"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
+                  style={{
+                    backgroundColor: "var(--bg-secondary)",
+                    border: confirm.length > 0 && confirm !== password ? "2px solid #EF4444" : "1px solid var(--border-color)",
+                    color: "var(--text-primary)",
+                  }}
                 />
                 <div
                   className="absolute right-4 top-[42px] cursor-pointer text-gray-400 hover:text-blue-500 transition"
@@ -981,6 +1004,12 @@ function Register() {
                 >
                   {showConfirm ? <FaEyeSlash /> : <FaEye />}
                 </div>
+                {/* Message d'erreur instantané si les mots de passe ne correspondent pas */}
+                {confirm.length > 0 && confirm !== password && (
+                  <p className="text-red-500 text-xs mt-1 ml-2">
+                    Les mots de passe ne correspondent pas.
+                  </p>
+                )}
               </div>
 
               <div className="mb-6 rounded-2xl p-4" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
