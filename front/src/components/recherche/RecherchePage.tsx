@@ -274,7 +274,7 @@ const RecherchePage: React.FC = () => {
             </h2>
 
             <div
-              className={`rounded-2xl shadow-md flex flex-col md:flex-row items-center p-4 md:p-6`}
+              className={`rounded-2xl shadow-md flex flex-col md:flex-wrap items-center p-4 md:p-6 gap-2`}
               style={{ backgroundColor: "var(--bg-primary)" }}
             >
               <div className="flex items-center gap-4 w-full md:w-auto flex-grow mb-4 md:mb-0">
@@ -304,7 +304,7 @@ const RecherchePage: React.FC = () => {
                 className="w-full md:w-auto text-white font-semibold py-3 px-6 rounded-full transition duration-200 text-center flex items-center justify-center gap-2"
                 style={{ backgroundColor: "var(--color-primary)" }}
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-6 h-6" />
                 Modifier le Profil
               </Link>
             </div>
