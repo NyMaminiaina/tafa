@@ -95,6 +95,8 @@ const Messages: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: "", visible: false });
   const [isNewConversation, setIsNewConversation] = useState(false);
 
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
   const [search, setSearch] = useState("");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState<string | null>(null);
@@ -249,19 +251,19 @@ const Messages: React.FC = () => {
   const handleSelectConversation = async (conv: Conversation) => {
     setActiveConversation(conv);
     setShowProfileInfo(true);
+    setMessages([]); // ← Vider les anciens messages immédiatement
+    setLoadingMessages(true); // ← Activer le chargement
     navigate(`/messages?userId=${conv.other_user.id}`, { replace: true });
 
     try {
       const data = await getMessages(conv.id);
       setMessages(data.messages || []);
       setLastActivity(data.last_seen || null);
-      if (!data.messages || data.messages.length === 0) {
-        setIsNewConversation(true);
-      } else {
-        setIsNewConversation(false);
-      }
+      setIsNewConversation(!data.messages || data.messages.length === 0);
     } catch (error) {
       console.error("Erreur messages:", error);
+    } finally {
+      setLoadingMessages(false); // ← Désactiver le chargement
     }
   };
 
@@ -715,6 +717,12 @@ const Messages: React.FC = () => {
                         ))}
                       </div>
                     </div>
+                  ) : loadingMessages ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-4">
+                      <div className="w-20 h-20 bg-gray-200 rounded-full animate-pulse" />
+                      <div className="w-48 h-4 bg-gray-200 rounded animate-pulse" />
+                      <div className="w-32 h-3 bg-gray-200 rounded animate-pulse" />
+                    </div>
                   ) : (
                     messages.map((msg, index) => (
                       <React.Fragment key={msg.id}>
@@ -842,7 +850,7 @@ const Messages: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4 border-t theme-border">
+                  <div className="p-3 sm:p-4 border-t theme-border">
                     {isBlocked && (
                       <div className="mb-2 text-red-500 text-sm font-semibold">
                         🚫 Vous avez bloqué cet utilisateur. Vous ne pouvez plus envoyer de messages.
@@ -851,9 +859,9 @@ const Messages: React.FC = () => {
                     <div className="relative flex items-center gap-2">
                       <button
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        className="p-2 text-gray-500 hover:theme-primary transition-colors"
+                        className="p-2 text-gray-500 hover:theme-primary transition-colors hidden sm:flex"
                       >
-                        <FaSmile size={isMobile ? 20 : 22} />
+                        <FaSmile size={22} />
                       </button>
                       {showEmojiPicker && (
                         <div className="absolute bottom-full left-0 mb-2 z-50">
