@@ -412,7 +412,7 @@ function Profil() {
         </div>
       )}
 
-      <main className="w-full pt-[100px] pb-12" style={{ padding: isMobile ? "100px 3% 5rem" : "100px 3% 3%" }}>
+      <main className="w-full pt-[100px] pb-12" style={{ padding: isMobile ? "100px 3% 6rem" : "100px 3% 3%" }}>
         <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-[3%] items-start">
 
           {/* --- BLOC GAUCHE (Design Ancien / Contenu Nouveau) --- */}
@@ -471,7 +471,7 @@ function Profil() {
                 <div className="w-full space-y-3 mb-6">
                   <InfoItem icon={<Mail size={18} />} label="Email" value={userEmail} />
                   <InfoItem icon={<Cake size={18} />} label="Âge" value={userInfo?.age ? `${userInfo.age} ans` : "Non spécifié"} />
-                  <InfoItem icon={<MapPin size={18} />} label="Ville" value={userInfo?.city?.name || "Non spécifié"} />
+                  Centres d'intérêt
                   <InfoItem icon={<Briefcase size={18} />} label="Profession" value={userInfo?.profession || "Non spécifié"} />
                   <InfoItem icon={<Languages size={18} />} label="Langues" value={userInfo?.langues?.map((l: any) => l.name).join(", ") || "Non spécifié"} />
 
@@ -582,7 +582,7 @@ function Profil() {
               </Link>
             </div>
 
-            <div className="rounded-[2rem] p-8 shadow-sm" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', borderWidth: '1px' }}>
+            <div className="rounded-[2rem] p-8 shadow-sm mb-20 md:mb-0" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', borderWidth: '1px' }}>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                 <Heart size={20} style={{ color: 'var(--color-primary)' }} /> Centres d'intérêt
               </h3>
