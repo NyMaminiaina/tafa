@@ -67,7 +67,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ file, onCropDone, onCancel 
     if (!imageSrc) return null;
 
     return (
-        <div className="fixed inset-0 z-[99999] bg-black flex flex-col">
+        <div className="fixed inset-0 z-[99999] bg-black flex flex-col pb-6">
             <div className="flex items-center justify-between p-4 text-white">
                 <button onClick={onCancel} className="p-2"><X size={24} /></button>
                 <span className="font-bold">Rogner la photo</span>

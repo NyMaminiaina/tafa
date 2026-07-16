@@ -360,7 +360,7 @@ function Profil() {
   console.log("Completion:", getProfileCompletion(), "userInfo:", userInfo);
 
   return (
-    <div className="min-h-screen w-full antialiased" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+    <div className="min-h-screen w-full antialiased pb-14" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
       <NavbarProfil />
 
       {isMyProfile && userInfo && showCompletionBanner && getProfileCompletion() < 100 && (

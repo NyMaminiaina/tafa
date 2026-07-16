@@ -142,43 +142,6 @@ const Messages: React.FC = () => {
     }
   }, [searchParams, loading]);
 
-  // Rafraîchissement intelligent des conversations
-  // useEffect(() => {
-  //   let intervalId: ReturnType<typeof setInterval> | null = null;
-
-  //   const startPolling = () => {
-  //     if (intervalId) return;
-  //     intervalId = setInterval(fetchConversations, 8000);
-  //   };
-
-  //   const stopPolling = () => {
-  //     if (intervalId) {
-  //       clearInterval(intervalId);
-  //       intervalId = null;
-  //     }
-  //   };
-
-  //   // Ne poll que si la page est visible ET qu'aucune conversation n'est active
-  //   if (document.visibilityState === "visible" && !activeConversation) {
-  //     startPolling();
-  //   }
-
-  //   const handleVisibilityChange = () => {
-  //     if (document.visibilityState === "visible" && !activeConversation) {
-  //       fetchConversations();
-  //       startPolling();
-  //     } else {
-  //       stopPolling();
-  //     }
-  //   };
-  //   document.addEventListener("visibilitychange", handleVisibilityChange);
-
-  //   return () => {
-  //     stopPolling();
-  //     document.removeEventListener("visibilitychange", handleVisibilityChange);
-  //   };
-  // }, [activeConversation]);
-
   useEffect(() => {
     const handleRefresh = () => {
       fetchConversations();
@@ -672,10 +635,11 @@ const Messages: React.FC = () => {
                           setShowProfileInfo(!showProfileInfo);
                         }
                       }}
-                      className={`${showProfileInfo ? "theme-primary-text" : "theme-text-secondary"
-                        } transition-colors`}
+                      className={`${
+                        showProfileInfo ? "theme-primary-text" : "theme-text-secondary"
+                      } transition-colors cursor-pointer`}
                     >
-                      <FaInfoCircle size={isMobile ? 18 : 20} />
+                      <FaInfoCircle size={isMobile ? 18 : 20}/>
                     </button>
                   )}
                 </div>
@@ -848,10 +812,10 @@ const Messages: React.FC = () => {
                         🚫 Vous avez bloqué cet utilisateur. Vous ne pouvez plus envoyer de messages.
                       </div>
                     )}
-                    <div className="relative flex items-center gap-2">
+                    <div className="relative flex items-end gap-2">
                       <button
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        className="p-2 text-gray-500 hover:theme-primary transition-colors"
+                        className="p-2 text-gray-500 hover:theme-primary transition-colors self-center"
                       >
                         <FaSmile size={isMobile ? 20 : 22} />
                       </button>
@@ -860,23 +824,29 @@ const Messages: React.FC = () => {
                           <EmojiPicker onEmojiClick={onEmojiClick} theme={"light" as any} />
                         </div>
                       )}
-                      <input
-                        type="text"
+                      <textarea
                         value={newMessage}
                         disabled={isBlocked}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
                         placeholder={
                           isBlocked
                             ? "Utilisateur bloqué"
                             : "Écrivez votre message..."
                         }
-                        className="flex-1 theme-bg-secondary theme-text-primary border-none rounded-2xl px-4 py-3 text-sm md:text-base focus:ring-2 focus:ring-gray-500 outline-none"
+                        rows={1}
+                        className="flex-1 theme-bg-secondary theme-text-primary border-none rounded-2xl px-4 py-3 text-sm md:text-base focus:ring-2 focus:ring-gray-500 outline-none resize-none"
+                        style={{ maxHeight: '120px', overflowY: 'auto' }}
                       />
                       <button
                         onClick={handleSendMessage}
                         disabled={isBlocked || isSending || !newMessage.trim()}
-                        className="p-3 theme-primary hover:theme-primary text-white rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-gray-500/20"
+                        className="p-3 theme-primary hover:theme-primary text-white rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-gray-500/20 self-end"
                       >
                         <FaPaperPlane />
                       </button>
