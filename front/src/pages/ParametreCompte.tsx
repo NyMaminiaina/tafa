@@ -227,7 +227,7 @@ const handleUpdateProfile = async () => {
                   <button
                     onClick={() => setShowProfileForm(true)}
                     style={{ backgroundColor: "var(--color-primary)" }}
-                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-700 font-semibold transition"
+                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 font-semibold transition"
                   >
                     Modifier le profil
                   </button>
@@ -323,7 +323,7 @@ const handleUpdateProfile = async () => {
                   <button
                     onClick={() => setShowEmailForm(true)}
                     style={{ backgroundColor: "var(--color-primary)" }}
-                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-700 font-semibold transition"
+                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 font-semibold transition"
                   >
                     Modifier l’adresse email
                   </button>
@@ -401,7 +401,7 @@ const handleUpdateProfile = async () => {
                   <button
                     onClick={() => setShowPasswordForm(true)}
                     style={{ backgroundColor: "var(--color-primary)" }}
-                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-700 font-semibold transition"
+                    className="w-full p-4 rounded-2xl border border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 font-semibold transition"
                   >
                     Changer le mot de passe
                   </button>
