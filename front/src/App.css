@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+/* ========== THEME VARIABLES ========== */
+:root {
+  --color-primary: #1daeed;
+  --color-primary-hover: #0ea5e9;
+  --color-primary-light: #e0f2fe;
+  --color-primary-gradient-start: #0c4a6e;
+  --color-primary-gradient-end: #38bdf8;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --icon-color: #6b8fad;
+}
+
+*,
+*::before,
+*::after {
+  box-shadow: none !important;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode styles */
+body.dark-mode {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+body.dark-mode .bg-white {
+  background-color: var(--bg-secondary) !important;
+}
+
+body.dark-mode .bg-gray-50,
+body.dark-mode .bg-slate-50,
+body.dark-mode .bg-\[#f8fafc\] {
+  background-color: var(--bg-primary) !important;
+}
+
+body.dark-mode .text-slate-800,
+body.dark-mode .text-slate-900,
+body.dark-mode .text-gray-800,
+body.dark-mode .text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+body.dark-mode .text-slate-600,
+body.dark-mode .text-slate-700,
+body.dark-mode .text-gray-600,
+body.dark-mode .text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+body.dark-mode .border-slate-100,
+body.dark-mode .border-slate-200,
+body.dark-mode .border-gray-100,
+body.dark-mode .border-gray-200 {
+  border-color: var(--border-color) !important;
+}
+
+/* Theme color utilities */
+.theme-primary {
+  background-color: var(--color-primary);
+}
+
+.theme-primary-text {
+  color: var(--color-primary);
+}
+
+.theme-primary-hover:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.theme-primary-light {
+  background-color: var(--color-primary-light);
+}
+
+.theme-bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.theme-bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.theme-text-primary {
+  color: var(--text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+
+.theme-border {
+  border-color: var(--border-color);
+}
+
+/* src/App.css */
+
+.app-container {
+  width: 100vw;
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* Remove overlay for fully visible background */
+.app-container::after {
+  content: "";
+  display: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 450px;
+  /* bigger card */
+  background-color: #ffffff;
+  /* fully white */
+  padding: 40px;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo {
+  width: 220px;
+  /* slightly bigger logo */
+  margin-bottom: 30px;
+}
+
+/* wrapper for input + icon */
+.input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  /* vertically center */
+  color: #000000;
+  font-size: 18px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px 15px;
+  padding-left: 40px;
+  /* space for icon */
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+  box-sizing: border-box;
+  background-color: #e6f7ff;
+  /* light sky-blue */
+}
+
+.forgot-password {
+  align-self: flex-end;
+  margin-bottom: 15px;
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.login-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #007bff;
+  color: white;
+  font-size: 16px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+
+.signup-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+}
+
+.signup-button {
+  background: none;
+  border: none;
+  color: #007bff;
+  margin-left: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+
+
+
+/* Agrandir la carte */
+.login-card-large {
+  width: 500px;
+  padding: 40px;
+}
+
+/* Wrapper des inputs avec icône */
+.input-wrapper {
+  width: 100%;
+  position: relative;
+  margin-bottom: 15px;
+}
+
+/* Icônes */
+.input-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+}
+
+/* Nouveaux inputs stylés */
+.styled-input {
+  width: 100%;
+  padding: 12px 15px 12px 45px;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 200, 230, 0.6);
+  background-color: rgba(210, 230, 255, 0.8);
+  /* Bleu ciel transparent */
+  font-size: 16px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.styled-input:focus {
+  border-color: rgba(90, 150, 210, 0.9);
+  background-color: rgba(220, 240, 255, 0.95);
+}
+
+.page-under-navbar {
+  padding-top: 70px;
+}
+
+.page-under-recherche {
+  padding-top: 110px;
+}
+
+.password-input::-ms-reveal,
+.password-input::-ms-clear {
+  display: none;
+}
+
+.password-input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+}
+
+/* ========== ADMIN DARK MODE ========== */
+body.dark-mode .from-gray-50 {
+  background-image: none !important;
+  background-color: var(--bg-primary) !important;
+}
+
+body.dark-mode .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+body.dark-mode .border-gray-300 {
+  border-color: var(--border-color) !important;
+}
+
+body.dark-mode .bg-gray-200 {
+  background-color: var(--border-color) !important;
+}
+
+body.dark-mode .bg-gray-100 {
+  background-color: var(--bg-secondary) !important;
+}
+
+body.dark-mode .text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+body.dark-mode .hover\:bg-gray-50:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+body.dark-mode .hover\:bg-gray-100:hover {
+  background-color: var(--border-color) !important;
+}
+
+body.dark-mode .bg-sky-600 {
+  background-color: var(--color-primary) !important;
+}
+
+body.dark-mode .text-sky-600 {
+  color: var(--color-primary) !important;
+}

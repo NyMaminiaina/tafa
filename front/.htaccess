@@ -1,0 +1,27 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. FORCE LE HTTPS
+  # Redirige tout le trafic HTTP vers HTTPS pour valider le certificat SSL
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 2. GESTION DU RAFRAÎCHISSEMENT (React Router)
+  # Si le fichier ou le dossier demandé n'existe pas physiquement, 
+  # on renvoie tout vers index.html pour que React gère la route.
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# 3. OPTIONNEL : SÉCURITÉ ET CACHE
+# Empêche le listage des répertoires pour plus de sécurité
+Options -Indexes
+
+# Active la compression Gzip pour charger le site plus vite
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
+</IfModule>

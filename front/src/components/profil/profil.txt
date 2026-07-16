@@ -1,0 +1,205 @@
+import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import NavbarProfil from "../NavbarProfil";
+import { API_URL, BASE_URL } from "../../utils/api_url";
+import { 
+  Mail, MapPin, Briefcase, Edit3, Languages, Cake, Heart, User, Star, Camera, CheckCircle2
+} from "lucide-react";
+
+function Profil() {
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const [userImages, setUserImages] = useState<any[]>([]);
+  const [stats, setStats] = useState({ likes: 3, matches: 0, views: 50 });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      try {
+        const response = await fetch(`${API_URL}/profile`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        const data = await response.json();
+        if (data.profile) setUserInfo(data.profile);
+        if (data.images) setUserImages(data.images);
+      } catch (err) { console.error(err); }
+    };
+    fetchProfile();
+  }, []);
+
+  const calculateAge = (dateStr: string) => {
+    if (!dateStr) return "Non renseigné";
+    const age = new Date().getFullYear() - new Date(dateStr).getFullYear();
+    return isNaN(age) ? "---" : `${age} ans`;
+  };
+
+  const firstName = userInfo?.user?.firstname || userInfo?.firstname || "";
+  const lastName = userInfo?.user?.name || userInfo?.name || "";
+
+  return (
+    <div className="min-h-screen w-full bg-[#f1f5f9] text-[#1e293b]">
+      <NavbarProfil />
+
+      <main className="w-full pt-[110px] pb-20 px-[4%] max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-[35%_1fr] gap-10 items-start">
+          
+          {/* --- COLONNE GAUCHE : CARTE D'IDENTITÉ --- */}
+          <div className="sticky top-[110px] space-y-6">
+            <div className="bg-white rounded-[3rem] shadow-xl shadow-blue-900/5 overflow-hidden border border-white transition-all hover:shadow-2xl">
+              {/* Header avec dégradé premium */}
+              <div className="h-40 bg-gradient-to-br from-[#25b7f0] via-[#1da1d4] to-[#0ea5e9] relative">
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+              </div>
+              
+              <div className="px-8 pb-10 -mt-20 flex flex-col items-center relative z-10">
+                {/* Photo de profil haute qualité */}
+                <div className="relative group">
+                  <div className="w-48 h-48 rounded-[2.5rem] border-[8px] border-white shadow-2xl overflow-hidden bg-slate-200 rotate-3 transition-transform group-hover:rotate-0">
+                    <img 
+                      src={userImages.find(img => img.is_primary)?.url || userImages[0]?.url || "/default-avatar.png"} 
+                      className="w-full h-full object-cover scale-110 group-hover:scale-100 transition-transform duration-500" 
+                      alt="Profile" 
+                    />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-white p-3 rounded-2xl shadow-lg text-[#25b7f0] border border-slate-100">
+                    <Camera size={20} />
+                  </div>
+                </div>
+
+                {/* Identité */}
+                <div className="text-center mt-6 mb-8">
+                  <div className="flex items-center justify-center gap-2">
+                    <h2 className="text-3xl font-[1000] text-slate-800 tracking-tight italic">
+                      {firstName} {lastName}
+                    </h2>
+                    <CheckCircle2 size={20} className="text-blue-500 fill-blue-50" />
+                  </div>
+                  <p className="bg-blue-50 text-[#25b7f0] inline-block px-4 py-1 rounded-full font-black text-[11px] uppercase tracking-[0.25em] mt-3">
+                    {userInfo?.profession || "Membre Premium"}
+                  </p>
+                </div>
+
+                {/* Stats interactives */}
+                <div className="grid grid-cols-3 w-full py-6 bg-slate-50/80 backdrop-blur-sm rounded-[2.5rem] mb-8 border border-slate-100/50">
+                  <StatItem value={stats.likes} label="Likes" color="text-pink-500" />
+                  <StatItem value={stats.matches} label="Matches" color="text-purple-500" />
+                  <StatItem value={stats.views} label="Vues" color="text-blue-500" />
+                </div>
+
+                {/* Informations détaillées (Les 8 champs) */}
+                <div className="w-full space-y-2">
+                  <InfoRow icon={<Mail size={18}/>} label="Email" value={userInfo?.user?.email} />
+                  <InfoRow icon={<Cake size={18}/>} label="Âge" value={calculateAge(userInfo?.date_de_naissance)} />
+                  <InfoRow icon={<MapPin size={18}/>} label="Ville" value={userInfo?.city?.name || "Non renseignée"} />
+                  <InfoRow icon={<Briefcase size={18}/>} label="Profession" value={userInfo?.profession || "Non renseignée"} />
+                  <InfoRow icon={<Languages size={18}/>} label="Langues" value={userInfo?.langues?.map((l:any)=>l.name).join(", ") || "Non renseigné"} />
+                  <InfoRow icon={<Heart size={18}/>} label="Situation" value={userInfo?.Situation_amoureuse || "Célibataire"} />
+                  <InfoRow icon={<User size={18}/>} label="Recherche" value={userInfo?.relationship_type?.name || "À découvrir"} />
+                  <InfoRow icon={<Star size={18}/>} label="Signe Astro" value={userInfo?.zodiac_sign || "Non renseigné"} />
+                </div>
+
+                <Link to="/modifier-profil" className="w-full py-5 bg-[#1e293b] text-white rounded-[1.5rem] font-extrabold text-center mt-10 flex items-center justify-center gap-3 hover:bg-[#25b7f0] shadow-xl shadow-slate-200 transition-all active:scale-95">
+                  <Edit3 size={20} /> MODIFIER MON PROFIL
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* --- COLONNE DROITE : CONTENU --- */}
+          <div className="space-y-8">
+            {/* Bio */}
+            <div className="bg-white rounded-[3rem] p-12 shadow-sm border border-white">
+              <h3 className="text-2xl font-[1000] text-slate-800 mb-6 flex items-center gap-3">
+                <span className="w-2 h-8 bg-[#25b7f0] rounded-full"></span>
+                À propos de moi
+              </h3>
+              <p className="text-lg text-slate-500 leading-[1.8] font-medium italic italic-font">
+                "{userInfo?.bio || "Cet utilisateur n'a pas encore rédigé sa description."}"
+              </p>
+            </div>
+
+            {/* Galerie Photos avec aspect ratio moderne */}
+            <div className="bg-white rounded-[3rem] p-12 shadow-sm border border-white">
+              <div className="flex justify-between items-end mb-10">
+                <h3 className="text-2xl font-[1000] text-slate-800 flex items-center gap-3">
+                  <span className="w-2 h-8 bg-[#25b7f0] rounded-full"></span>
+                  Galerie Photos
+                </h3>
+                <span className="bg-slate-100 px-4 py-2 rounded-2xl text-slate-400 font-bold text-sm">
+                  {userImages.length} / 6 photos
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {userImages.map((img, i) => (
+                  <div key={i} className="group relative aspect-[3/4] rounded-[2.5rem] overflow-hidden shadow-md">
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity z-10"></div>
+                    {img.is_primary && (
+                      <span className="absolute top-5 left-5 bg-[#25b7f0] text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full z-20 shadow-lg">
+                        Principale
+                      </span>
+                    )}
+                    <img src={img.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
+                  </div>
+                ))}
+                
+                {/* Slots vides design */}
+                {[...Array(Math.max(0, 6 - userImages.length))].map((_, i) => (
+                  <div key={i} className="aspect-[3/4] rounded-[2.5rem] border-4 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50 hover:bg-white hover:border-[#25b7f0]/30 transition-all">
+                    <div className="p-4 bg-white rounded-2xl shadow-sm mb-3 text-slate-200">
+                       <Camera size={32} />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Ajouter</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Centres d'intérêt stylisés */}
+            <div className="bg-white rounded-[3rem] p-12 shadow-sm border border-white">
+              <h3 className="text-2xl font-[1000] text-slate-800 mb-8 flex items-center gap-3">
+                <span className="w-2 h-8 bg-[#25b7f0] rounded-full"></span>
+                Passions & Centres d'intérêt
+              </h3>
+              <div className="flex flex-wrap gap-4">
+                {userInfo?.interests?.map((it: any, i: number) => (
+                  <div key={i} className="px-8 py-4 bg-gradient-to-r from-slate-50 to-white text-slate-700 rounded-2xl font-black text-sm border border-slate-100 shadow-sm hover:shadow-md hover:border-[#25b7f0]/50 transition-all cursor-default">
+                    {it.name}
+                  </div>
+                )) || <p className="text-slate-300">Aucun intérêt sélectionné.</p>}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Sous-composant pour les Stats
+function StatItem({ value, label, color }: any) {
+  return (
+    <div className="flex flex-col items-center justify-center first:border-r last:border-l border-slate-200/50">
+      <span className={`text-2xl font-[1000] ${color} tracking-tighter`}>{value}</span>
+      <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter mt-1">{label}</span>
+    </div>
+  );
+}
+
+// Sous-composant pour les lignes d'info
+function InfoRow({ icon, label, value }: any) {
+  return (
+    <div className="flex items-center gap-5 p-4 rounded-[1.5rem] hover:bg-blue-50/40 transition-all group border border-transparent hover:border-blue-100">
+      <div className="text-[#25b7f0] p-3 bg-white shadow-sm rounded-2xl group-hover:bg-[#25b7f0] group-hover:text-white transition-all duration-300">
+        {icon}
+      </div>
+      <div className="flex flex-col overflow-hidden">
+        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1.5">{label}</span>
+        <span className="text-[15px] font-bold text-slate-600 truncate">{value || "---"}</span>
+      </div>
+    </div>
+  );
+}
+
+export default Profil;

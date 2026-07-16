@@ -1,0 +1,855 @@
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import {
+  FaHeart,FaTimes,FaTelegramPlane,FaMapMarkerAlt,FaCheckCircle,FaInfoCircle,FaClock,FaLanguage,FaCommentDots,FaFilter,FaLocationArrow,FaBriefcase,FaStar,FaUser} from "react-icons/fa";
+  import {
+    Trophy, Music, Plane, Book, Film, Music2,
+    Utensils, Gamepad2, Camera, Palette,
+    Dumbbell, Flower2, Star, PawPrint,
+    Laptop, Mountain, Leaf, FileText,
+    Shirt, Sun
+  } from "lucide-react";
+import MessageModal from "../components/MessageModal";
+import UpgradeModal from "../components/UpgradeModal";
+import { Sparkles, X } from "lucide-react";
+
+         // Importation de l'icône de fermeture
+import axios from "axios";
+import { API_URL } from "../utils/api_url";
+import { likeProfile, dislikeProfile, getNearbyOnline, getUserLimits } from "../api/api";
+import useGeolocation from "../hooks/useGeolocation";
+
+// --- TYPES ---
+interface Profile {
+  id: number;
+  name: string;
+  first_name?: string;
+  age: number;
+  job: string;
+  situation_amoureuse: string;
+  relations_rechercher?: string; 
+  email?: string;
+  location: string;
+  interests: any[];
+  photos: string[];
+  bio: string;
+  langues: any[];
+  lastActive: string | null;
+  compatibility: number;
+  distance?: number | null;
+  Zodiac_sign?: string;
+}
+
+interface NearbyUser {
+  id: number;
+  name: string;
+  photo: string;
+  distance: number;
+  lastActive: string | null;
+}
+
+const BASE_URL = API_URL.replace("/api","");
+const INTEREST_ICONS: { [key: string]: React.ReactNode } = {
+  "Sport": <Trophy className="w-4 h-4 text-red-500" />,
+  "Musique": <Music className="w-4 h-4 text-purple-500" />,
+  "Voyage": <Plane className="w-4 h-4 text-blue-400" />,
+  "Lecture": <Book className="w-4 h-4 text-indigo-500" />,
+  "Cinéma": <Film className="w-4 h-4 text-slate-500" />,
+  "Danse": <Music2 className="w-4 h-4 text-pink-500" />,
+  "Cuisine": <Utensils className="w-4 h-4 text-orange-500" />,
+  "Jeux vidéo": <Gamepad2 className="w-4 h-4 text-cyan-500" />,
+  "Photographie": <Camera className="w-4 h-4 text-pink-400" />,
+  "Art": <Palette className="w-4 h-4 text-rose-500" />,
+  "Fitness": <Dumbbell className="w-4 h-4 text-lime-600" />,
+  "Yoga": <Flower2 className="w-4 h-4 text-emerald-500" />,
+  "Théâtre": <Star className="w-4 h-4 text-yellow-500" />,
+  "Animaux": <PawPrint className="w-4 h-4 text-amber-600" />,
+  "Technologie": <Laptop className="w-4 h-4 text-blue-600" />,
+  "Randonnée": <Mountain className="w-4 h-4 text-stone-500" />,
+  "Nature": <Leaf className="w-4 h-4 text-green-500" />,
+  "Écriture": <FileText className="w-4 h-4 text-gray-500" />,
+  "Mode": <Shirt className="w-4 h-4 text-violet-500" />,
+  "Plage": <Sun className="w-4 h-4 text-yellow-500" />,
+};
+
+const SITUATION_LABELS: { [key: string]: string } = {
+  'Celibataire': 'Célibataire',
+  'marie': 'Marié(e)',
+  'Divorce': 'Divorcé(e)',
+  'veuf': 'Veuf(ve)',
+  'separe': 'Séparé(e)'
+};
+
+function Home() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // States
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [cardOffset, setCardOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [cursorType, setCursorType] = useState<"left" | "right" | "grab">("grab");
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationType, setNotificationType] = useState<"success" | "match" | "location">("success");
+  const [, setIsMobile] = useState(window.innerWidth < 768);
+  const [, setIsLargeScreen] = useState(window.innerWidth >= 2560);
+  const [isLiking, setIsLiking] = useState(false);
+  const [, setLoading] = useState(true);
+
+  // Geolocation & Limits
+  const { latitude, longitude } = useGeolocation();
+  const [, setNearbyUsers] = useState<NearbyUser[]>([]);
+  const [remainingLikes, setRemainingLikes] = useState<number>(10);
+  const [isGold, setIsGold] = useState<boolean>(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const startX = useRef(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+
+//RECHERCHE PAR INTENTION ET CENTRE D'INTERET
+const intentionLabel = searchParams.get("intentionLabel"); // Reçoit "Amitié"
+const interestFilter = searchParams.get("interest");
+
+// Nouveaux paramètres pour les filtres avancés
+const filtered = searchParams.get("filtered") === "true"; // Le déclencheur du mode "Filtrer"
+
+const ageMin = searchParams.get("ageMin");
+const ageMax = searchParams.get("ageMax");
+const situationAffiche = searchParams.get("situationLabel");
+const interestNames = searchParams.get("interestNames"); // Récupère le texte lisible
+const intentionAffichee = searchParams.get("intentionLabel");
+// Remplace distanceMax par distance
+const distanceMax = searchParams.get("distance");
+
+const currentProfile = profiles[currentIndex] || null;
+const [initializedFromUrl, setInitializedFromUrl] = useState(false);
+
+
+// COMPATIBILITE
+
+const clearFilter = () => {
+  // On vérifie si le paramètre 'filtered' est présent dans l'URL
+  const isFromFiltrerPage = searchParams.get("filtered") === "true";
+
+  if (isFromFiltrerPage) {
+    navigate("/filtres"); 
+  } else {
+    navigate("/recherche");
+  }
+};
+
+const formatImageUrl = (path: string | null) => {
+  if (!path) return "/user.png";
+  if (path.startsWith("http")) return path;
+  // Enlève le slash au début du chemin s'il existe
+  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+  // S'assure que BASE_URL finit par UN SEUL slash
+  const cleanBase = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
+  return `${cleanBase}${cleanPath}`;
+};
+
+
+
+useEffect(() => {
+  if (currentProfile && initializedFromUrl) {
+    navigate(`/welcome?userId=${currentProfile.id}`, { replace: true });
+  }
+}, [currentProfile, initializedFromUrl]);
+
+
+// voir le profil avy any am messsage
+useEffect(() => {
+  const userId = searchParams.get("userId");
+
+  if (!userId || profiles.length === 0 || initializedFromUrl) return;
+
+  const parsedId = parseInt(userId);
+  if (isNaN(parsedId)) return;
+
+  const index = profiles.findIndex(p => p.id === parsedId);
+
+  if (index !== -1) {
+    // ✅ trouvé dans la liste
+    setCurrentIndex(index);
+    setInitializedFromUrl(true);
+  } else {
+    // ❌ PAS trouvé → on le charge
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+
+        const res = await axios.get(`${API_URL}/profiles/${parsedId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const p = res.data.profile;
+
+        const newProfile: Profile = {
+          id: p.user_id || p.id,
+          first_name: p.first_name || "",
+          name: p.name || "Inconnu",
+        age: p.age || 25,
+        job: p.profession || "Non spécifié",
+      
+        email: p.email || "Email non défini",
+        situation_amoureuse: p.situation_amoureuse || "Situation amoureuse non définie",
+        Zodiac_sign: p.Zodiac_sign || "Signe Astro TSSSS",
+
+        relations_rechercher: p.relations_rechercher || "Non spécifié", // ✅ AJOUT
+      
+        location: p.city?.name || "Non spécifié",
+        
+        distance: p.distance || null,
+        interests: p.interests || [],
+        photos: p.images && p.images.length > 0
+          ? p.images.map((img: any) => formatImageUrl(img.url || img.path))
+          : ["/user.png"],
+        bio: p.bio || "",
+        langues: p.langues || [],
+        lastActive: p.last_active || null,
+        compatibility: p.compatibility || 0,
+        };
+
+        // 🔥 IMPORTANT : on met en premier
+        setProfiles(prev => [newProfile, ...prev]);
+        setCurrentIndex(0);
+        setInitializedFromUrl(true);
+
+      } catch (error) {
+        console.error("Erreur chargement profil:", error);
+      }
+    };
+
+    fetchUser();
+  }
+
+}, [searchParams, profiles, initializedFromUrl]);
+
+
+
+
+
+
+  // --- EFFETS ---
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsLargeScreen(window.innerWidth >= 2560);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // page d'acceuil
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return navigate("/login");
+  
+      // On récupère tous les paramètres de l'URL (intention, interest, etc.)
+      const params = Object.fromEntries(searchParams);
+      delete params.userId;
+  
+      const resProfiles = await axios.get(`${API_URL}/profiles`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: params // Envoie intention=... ou interest=... au backend
+      });
+  
+      const data = resProfiles.data.profiles || [];
+      
+      const formatted = data.map((p: any) => ({
+        id: p.user_id || p.id,
+        first_name: p.first_name || "",
+        name: p.name || "Inconnu",
+        age: p.age || 25,
+        job: p.profession || "Non spécifié",
+      
+        email: p.email || "Email non défini",
+        situation_amoureuse: p.situation_amoureuse || "Situation amoureuse non définie",
+        Zodiac_sign: p.Zodiac_sign || "Signe Astro non défini",
+
+        relations_rechercher: p.relations_rechercher || "Non spécifié", // ✅ AJOUT
+      
+        location: p.city?.name || "Non spécifié",
+        // location: p.city?.name
+        // ? `${p.city.name}${p.distance ? " • " + p.distance + " km" : ""}`
+        // : "Non spécifié",
+        
+        distance: p.distance || null,
+        interests: p.interests || [],
+        photos: p.images && p.images.length > 0
+          ? p.images.map((img: any) => formatImageUrl(img.url || img.path))
+          : ["/user.png"],
+        bio: p.bio || "",
+        langues: p.langues || [],
+        lastActive: p.last_active || null,
+        compatibility: p.compatibility || 0,
+      }));
+  
+      setProfiles(formatted);
+      
+      // IMPORTANT : On remet l'index à 0 car la liste a changé
+      const userId = searchParams.get("userId");
+
+if (!userId) {
+  setCurrentIndex(0);
+}
+      setCurrentPhotoIndex(0);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error("Erreur de chargement des profils :", err);
+      setLoading(false);
+    } 
+  }, [searchParams, navigate]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch Nearby & Limits
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const limits = await getUserLimits();
+        setIsGold(limits.is_gold);
+        setRemainingLikes(limits.remaining_likes);
+        
+        if (latitude && longitude) {
+          const resNearby = await getNearbyOnline(50);
+          setNearbyUsers(resNearby.profiles || []);
+        }
+      } catch (e) { console.error(e); }
+    };
+    initData();
+  }, [latitude, longitude]);
+
+  // --- HANDLERS ---
+  
+
+  const nextProfile = () => {
+    setCurrentIndex(prev => prev + 1);
+    setCurrentPhotoIndex(0);
+    setCardOffset({ x: 0, y: 0 });
+  };
+
+  const handlePhotoNavigation = (dir: "left" | "right") => {
+    if (!currentProfile) return;
+    if (dir === "left") {
+      setCurrentPhotoIndex(prev => (prev > 0 ? prev - 1 : currentProfile.photos.length - 1));
+    } else {
+      setCurrentPhotoIndex(prev => (prev < currentProfile.photos.length - 1 ? prev + 1 : 0));
+    }
+  };
+
+  const handleLike = async () => {
+    if (isLiking || !currentProfile) return;
+    setIsLiking(true);
+    try {
+      const res = await likeProfile(currentProfile.id);
+      if (res.limit_reached) {
+        setShowUpgradeModal(true);
+      } else {
+        if (res.is_match) {
+          setNotificationType("match");
+          setNotificationMessage(`C'est un Match avec ${currentProfile.name} !`);
+          setShowNotification(true);
+          setTimeout(() => setShowNotification(false), 4000);
+        }
+        setRemainingLikes(res.remaining_likes);
+        nextProfile();
+      }
+    } catch (e) { nextProfile(); }
+    finally { setIsLiking(false); }
+  };
+
+  const handleDislike = async () => {
+    if (isLiking || !currentProfile) return;
+    try { await dislikeProfile(currentProfile.id); } catch (e) {}
+    nextProfile();
+  };
+
+  // --- MOUSE/TOUCH LOGIC ---
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragging) {
+      setCardOffset({ x: e.clientX - startX.current, y: 0 });
+    } else if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      setCursorType(e.clientX - rect.left < rect.width / 2 ? "left" : "right");
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (dragging) {
+      if (cardOffset.x > 150) handleLike();
+      else if (cardOffset.x < -150) handleDislike();
+    }
+    setDragging(false);
+    setCardOffset({ x: 0, y: 0 });
+  };
+
+  
+//MESSAGES
+const hasProfiles = profiles.length > 0;
+const hasActiveFilter = intentionLabel || interestFilter ;
+
+
+
+  return (
+    
+    <div className="w-full min-h-screen flex flex-col font-sans" style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }}>
+      <Navbar />
+      
+
+      <div className="w-full h-[100dvh] overflow-hidden pt-[68px] pb-[82px] px-[4%] grid grid-cols-1 md:grid-cols-[1fr_35%] lg:grid-cols-[25%_1fr_25%] gap-0 md:gap-8 items-start md:h-auto md:overflow-visible md:pt-28 md:pb-10">
+
+        
+        
+        {/* ========== COLONNE GAUCHE ========== */}
+
+
+              <aside className="hidden lg:flex flex-col gap-6">
+                 {/* Affichage dynamique selon l'URL (Recherche simple ou Filtres complexes) */}
+
+                  {(intentionLabel || interestFilter || filtered) && (
+                    <div className="mb-6 flex flex-col gap-2 bg-blue-50 px-6 py-4 rounded-3xl shadow-sm border border-blue-200 w-full max-w-[480px]">
+                      
+                      {/* En-tête avec l'icône et le titre */}
+                      <div className="flex items-center gap-2 text-blue-600 mb-1">
+                        <FaFilter size={14} />
+                        <span className="text-xs font-black uppercase tracking-wider">Résultats pour :</span>
+                        <button 
+                          onClick={clearFilter}
+                          className="ml-auto p-1 bg-white hover:bg-red-50 rounded-full transition-colors border border-blue-100"
+                        >
+                          <X size={14} className="text-gray-400 hover:text-red-500" />
+                        </button>
+                      </div>
+
+                      {/* Liste des critères ligne par ligne */}
+                      <div className="flex flex-col gap-1 ml-6">
+                        {/* Cas RecherchePage.tsx (Recherche simple) */}
+                        {!filtered && (intentionLabel || interestFilter) && (
+                          <span className="text-sm font-bold text-blue-600">{intentionLabel || interestFilter}</span>
+                        )}
+
+                        {/* Cas Filtrer.tsx (Recherche avancée ligne par ligne) */}
+                        {filtered && (
+                          <>
+                            {ageMin && <span className="text-sm font-medium text-gray-700">Âge Min : <span className="text-blue-600 font-bold">{ageMin}</span></span>}
+                            {ageMax && <span className="text-sm font-medium text-gray-700">Âge Max : <span className="text-blue-600 font-bold">{ageMax}</span></span>}
+                            {intentionAffichee && (<p className="text-sm font-medium text-gray-700">Intention : <span className="text-blue-600 font-bold">{intentionAffichee}</span></p>)}
+                            {interestNames && (<span className="text-sm font-medium text-gray-700">Intérêts : <span className="text-blue-600 font-bold">{interestNames}</span></span>)} 
+                            {situationAffiche && (<p className="text-sm font-medium text-gray-700">Situation Amoureuse: <span className="text-blue-600 font-bold">{situationAffiche}</span></p>)}
+                            {distanceMax && <span className="text-sm font-medium text-gray-700">Distance Max : <span className="text-blue-600 font-bold">{distanceMax} km</span></span>}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                    
+                {/* BLOC INFO PRINCIPALE */}
+                <div className="p-7 rounded-[32px] shadow-sm border" style={{backgroundColor: "var(--bg-primary)",borderColor: "var(--border-color)",}}>
+                <h2
+                  className="text-2xl font-black"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  {[
+                    currentProfile?.first_name,
+                    currentProfile?.name
+                  ].filter(Boolean).join(" ") || "Utilisateur"}, {currentProfile?.age || "0"}
+                </h2>
+                  <div className="flex items-center gap-2 text-gray-500 mt-2 font-medium">
+                    <FaMapMarkerAlt className="text-red-400" /> {currentProfile?.location || "Ville non specifié"}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 font-bold">
+                    <FaBriefcase style={{ color: "var(--color-primary)" }} />
+                    <span style={{ color: "var(--text-primary)" }}>
+                      {currentProfile?.job || "Profession non spécifiée"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* BLOC COMPATIBILITÉ */}
+                <div className="p-7 rounded-[32px] shadow-sm border" style={{backgroundColor: "var(--bg-primary)",borderColor: "var(--border-color)",}}>
+                  <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-3 flex items-center gap-2">
+                    <Sparkles size={14} className="text-red-500 fill-red-500" /> Compatibilité
+                  </div>
+                  
+                  {/* Sécurité avec ?? 0 pour garantir un nombre */}
+                  <div className="text-6xl font-black text-[#FF5A60] mb-2">
+                    {(currentProfile?.compatibility ?? 0)}%
+                  </div>
+                  
+                  <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-red-400 to-red-600 h-full transition-all duration-1000" 
+                      style={{ width: `${(currentProfile?.compatibility ?? 0)}%` }} 
+                    />
+                  </div>
+                </div>
+
+                {/* BLOC INTÉRÊTS */}
+                <div className="p-7 rounded-[32px] shadow-sm border" style={{backgroundColor: "var(--bg-primary)",borderColor: "var(--border-color)",}}>
+                  <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest mb-4 flex items-center gap-2">
+                    <FaHeart className="text-blue-400" /> Centres d'intérêts
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {/* Sécurité : on vérifie si interests existe avant de mapper */}
+                    {currentProfile?.interests ? (
+                      currentProfile.interests.map((it: any, i: number) => {
+                        const name = typeof it === "string" ? it : it.name;
+
+                        return (
+                          <span
+                            key={i}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black"
+                            style={{
+                              backgroundColor: "var(--color-primary-light)",
+                              color: "var(--color-primary)",
+                            }}
+                          >
+                            {/* ICON */}
+                            <span className="flex items-center justify-center">
+                              {INTEREST_ICONS[name] || "❤️"}
+                            </span>
+                            {name}
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span
+                        className="text-xs italic"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Aucun intérêt
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </aside>
+
+        {/* ========== COLONNE CENTRALE (CARTE) ========== */}
+
+        <main className="flex flex-col items-center justify-center w-full h-full min-h-0">
+
+
+                                    
+              {hasProfiles && currentProfile && (initializedFromUrl || !searchParams.get("userId")) ? (
+                  <>
+                    <div className="w-full h-full min-h-0 relative flex flex-col md:flex-row items-center justify-center gap-2 md:gap-6">
+                      {/* LA CARTE DE PROFIL ACTIVE */}
+                      <div
+                        ref={cardRef}
+                        className="relative w-full max-w-[520px] flex-1 min-h-0 md:flex-none md:h-auto md:aspect-[3/4.2] rounded-[48px] overflow-hidden shadow-2xl border-[6px] border-white transition-all select-none"
+                        style={{
+                          transform: `translateX(${cardOffset.x}px) rotate(${cardOffset.x / 25}deg)`,
+                          cursor: dragging ? "grabbing" : cursorType === "left" ? "w-resize" : "e-resize",
+                          transition: dragging ? "none" : "transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+                        }}
+                        onMouseDown={(e) => { setDragging(true); startX.current = e.clientX; }}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        onClick={() => { if (Math.abs(cardOffset.x) < 5) handlePhotoNavigation(cursorType as "left" | "right"); }}
+                      >
+                        {/* Image de profil sécurisée */}
+                        <img 
+                          src={currentProfile.photos?.[currentPhotoIndex] || "/user.png"} 
+                          className="w-full h-full object-cover pointer-events-none" 
+                          alt="Profil" 
+                        />
+
+                        {/* Indicateurs de photos (Barres en haut) */}
+                        <div className="absolute top-6 left-8 right-8 flex gap-2 z-20">
+                          {currentProfile.photos?.map((_, i) => (
+                            <div 
+                              key={i} 
+                              className={`h-1.5 flex-1 rounded-full ${i === currentPhotoIndex ? "bg-white" : "bg-white/30"}`} 
+                            />
+                          ))}
+                        </div>
+
+                        {/* Overlay des informations (Nom, Age, Ville) */}
+                        <div className="absolute bottom-0 left-0 right-0 p-10 bg-gradient-to-t from-black/90 via-black/20 to-transparent text-white">
+                          <h1 className="text-4xl font-black">
+                            {currentProfile.name}, {currentProfile.age}
+                          </h1>
+                          <p className="flex items-center gap-2 mt-2 font-bold opacity-90 text-lg">
+                            <FaMapMarkerAlt className="text-red-500" /> {currentProfile.location}
+                            {currentProfile.distance && (
+                              <span className="ml-2 px-3 py-1 bg-white/20 rounded-full text-xs">
+                                {currentProfile.distance} km
+                              </span>
+                            )}
+                          </p>
+                          
+                          {/* Boutons d'action rapides sur la carte */}
+                          <div className="flex gap-4 mt-8">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setMessageOpen(true); }} 
+                              className="bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-2xl flex items-center gap-2 border border-white/20 font-bold px-6 py-3"
+                            >
+                              <FaCommentDots className="text-blue-400" /> Discussion
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleLike(); }} 
+                              className="bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-2xl flex items-center gap-2 border border-white/20 font-bold px-6 py-3"
+                            >
+                              <FaHeart className="text-[#FF5A60]" /> Rencontre
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Boutons d'action latéraux (X, Message, Heart) */}
+                      <div className="hidden md:flex flex-col gap-6">
+                        <ActionButton type="x" onClick={handleDislike} disabled={isLiking}>
+                          <FaTimes size={25}/>
+                        </ActionButton>
+                        <ActionButton type="message" onClick={() => setMessageOpen(true)}>
+                          <FaTelegramPlane size={25}/>
+                        </ActionButton>
+                        <ActionButton type="heart" onClick={handleLike} disabled={isLiking}>
+                          <FaHeart size={25}/>
+                        </ActionButton>
+                      </div>
+
+                      <div className="flex md:hidden flex-row gap-6 mt-1 mb-0">
+                        <ActionButton type="x" onClick={handleDislike} disabled={isLiking}>
+                          <FaTimes size={25}/>
+                        </ActionButton>
+
+                        <ActionButton type="message" onClick={() => setMessageOpen(true)}>
+                          <FaTelegramPlane size={25}/>
+                        </ActionButton>
+
+                        <ActionButton type="heart" onClick={handleLike} disabled={isLiking}>
+                          <FaHeart size={25}/>
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  
+                /* ========== ÉTAT VIDE : AUCUN PROFIL TROUVÉ ========== */
+                <div className="w-full relative flex flex-col md:flex-row items-center justify-center gap-2 md:gap-6">
+                    <div 
+                      className="relative w-full max-w-[480px] aspect-[3/4.2] rounded-[48px] bg-white shadow-2xl border-[6px] border-white flex flex-col items-center justify-center p-12 text-center"
+                    >
+                      {/* Icône dynamique */}
+                      <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-8">
+                        {hasActiveFilter ? (
+                          <FaFilter size={40} className="text-gray-300" />
+                        ) : (
+                          <FaClock size={40} className="text-gray-300" />
+                        )}
+                      </div>
+                      
+                      <h2 className="text-3xl font-black text-gray-800 mb-4">
+                        {hasActiveFilter ? "Aucun résultat" : "C'est tout pour le moment"}
+                      </h2>
+                      
+                      <p className="text-gray-500 mb-10 font-medium text-lg leading-relaxed px-4">
+                        {hasActiveFilter 
+                          ? "Aucun profil ne correspond à vos filtres actuels. Essayez d'ajuster vos critères." 
+                          : "Vous avez vu tous les profils disponibles pour le moment. Revenez plus tard !"}
+                      </p>
+
+                      {/* Boutons dynamiques */}
+                      {hasActiveFilter ? (
+                        <button
+                        onClick={clearFilter}
+                        className="w-full py-5 bg-purple-400 text-white rounded-[24px] font-bold text-lg hover:bg-purple-600 transition-all shadow-xl shadow-blue-100 active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <FaFilter size={18} />
+                        {searchParams.get("filtered") === "true" 
+                          ? "Modifier mes filtres" 
+                          : "Réinitialiser les filtres"}
+                      </button>
+                      ) : (
+                        <div
+                          className="w-full py-5 bg-gray-100 text-gray-500 rounded-[24px] font-bold text-lg flex items-center justify-center gap-2 border border-gray-200"
+                        >
+                          <FaClock size={18} />
+                          Revenez plus tard
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Espacement invisible pour maintenir l'alignement */}
+                    <div className="hidden md:flex flex-col gap-6 opacity-0 pointer-events-none">
+                        <ActionButton type="x" onClick={() => {}}><FaTimes /></ActionButton>
+                        <ActionButton type="message" onClick={() => {}}><FaTelegramPlane /></ActionButton>
+                        <ActionButton type="heart" onClick={() => {}}><FaHeart /></ActionButton>
+                    </div>
+                  </div>
+                )}
+              </main>
+
+        {/* ========== COLONNE DROITE ========== */}
+                <aside className="hidden md:flex flex-col gap-6">
+                  
+                  <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100">
+                  <h3 className="text-[20px] font-black uppercase tracking-widest mb-6 flex items-center gap-2" style={{ color: "var(--color-primary)" }}
+                  >
+                    <FaInfoCircle />
+                    À propos
+                  </h3>
+                    <div className="space-y-3 text-sm">
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                          <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+                            Bio
+                          </p>
+                          <p className="relative rounded-3xl px-5 py-4 text-sm leading-relaxed font-medium italic border" style={{backgroundColor: "var(--bg-secondary)",color: "var(--text-secondary)",borderColor: "var(--border-color)",}}>
+                            “{currentProfile?.bio || "Aucune description disponible"}”
+                          </p>
+                        </div>
+                        <InfoRow icon={<FaClock />} label="Activité" value={currentProfile?.lastActive || "Actif récemment"}/>
+                        <InfoRow icon={<FaInfoCircle />}label="Email" value={currentProfile?.email || "Email non défini"} />
+                        <InfoRow icon={<FaLanguage />} label="Langues" value={currentProfile?.langues?.map((l: any) => l.name || l).join(", ") || "Non spécifié"}/>
+                        <InfoRow icon={<FaHeart />} label="Situation Amoureuse" value={currentProfile?.situation_amoureuse
+                              ? (SITUATION_LABELS[currentProfile.situation_amoureuse] || currentProfile.situation_amoureuse)
+                              : "Non spécifié"
+                          }
+                        />
+                        <InfoRow icon={<FaUser />} label="Relation Recherchée" value={currentProfile?.relations_rechercher || "Relation non définie"} />
+                        <InfoRow icon={<FaStar />} label="Signe astro" value={currentProfile?.Zodiac_sign || "Signe Astro non défini"}/>
+                      </div>
+                  </div>
+                </aside>
+      </div>
+
+     
+{/* Modales & Notifications */}
+<MessageModal
+  open={messageOpen}
+  onClose={() => setMessageOpen(false)}
+  profile={currentProfile}
+  onSend={async () => {
+    // Forcez l'affichage sans attendre l'API pour voir si ça marche
+    setNotificationType("success");
+    setNotificationMessage("Message envoyé avec succès !");
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+}}
+/>
+  
+      {/* Ref 10 likes dia miseho ito modales ito */}
+<UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Limite atteinte" message="Passez à Tafa Gold pour des likes illimités !" feature="likes" />
+
+      {showNotification && (
+    <div
+      className={`fixed bottom-10 left-1/2 -translate-x-1/2 ${
+        notificationType === "match"
+          ? "bg-gradient-to-r from-pink-500 to-purple-600"
+          : notificationType === "location"
+          ? "bg-green-600"
+          : "bg-blue-600"
+      } text-white px-8 py-4 rounded-2xl shadow-2xl z-[10000] flex items-center gap-3 animate-bounce font-bold`}
+    >
+      {notificationType === "match" ? (
+        <FaHeart className="text-xl" />
+      ) : notificationType === "location" ? (
+        <FaLocationArrow />
+      ) : (
+        <FaCheckCircle />
+      )}
+      {notificationMessage}
+    </div>
+  )}
+
+      {!isGold && remainingLikes <= 5 && (
+        <div className="fixed top-24 right-4 px-4 py-2 bg-orange-500/90 text-white rounded-full shadow-lg z-50 flex items-center gap-2 text-xs font-black">
+          <FaHeart size={12} /> {remainingLikes} likes restants
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionButton({children,onClick,type,disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  type: "x" | "heart" | "message";
+  disabled?: boolean;
+}) {
+  const isMessage = type === "message";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`
+        w-22 h-22 rounded-full flex items-center justify-center shadow-xl 
+        transition-all hover:scale-110 active:scale-90 border
+        ${disabled ? "opacity-50" : ""}
+        
+        ${
+          isMessage
+            ? "bg-gradient-to-br from-[#FF4DB8] to-[#4C6EF5] text-white border-transparent"
+            : ""
+        }
+      `}
+      style={
+        !isMessage
+          ? {
+              backgroundColor: "var(--bg-primary)",
+              color:
+                type === "x"
+                  ? "#FF3B30"
+                  : "var(--color-primary)",
+              borderColor: "var(--border-color)",
+            }
+          : {}
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function InfoRow({ icon, label, value }: any) {
+  return (
+    <div
+      className="flex items-center gap-4 rounded-2xl px-4 py-3 border transition-all hover:scale-[1.02]"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderColor: "var(--border-color)",
+      }}
+    >
+      {/* ICON */}
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+        style={{backgroundColor: "var(--bg-primary)",color: "var(--color-primary)",}}
+      >
+        {icon}
+      </div>
+
+      {/* TEXT */}
+      <div className="flex flex-col min-w-0">
+        <span
+          className="text-[10px] font-black uppercase tracking-widest"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {label}
+        </span>
+
+        <span
+          className="text-sm font-bold truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export default Home;
