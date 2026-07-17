@@ -8,6 +8,7 @@ use App\Models\Image;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use App\Rules\RealImage;
 
 
 class ImageController extends Controller
@@ -32,7 +33,7 @@ class ImageController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,webp,jfif', 'max:5120', new RealImage],
         ]);
 
         $user = Auth::user();
@@ -181,7 +182,7 @@ class ImageController extends Controller
     public function replace(Request $request, $id)
     {
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,webp,jfif', 'max:5120', new RealImage],
         ]);
 
         $user = Auth::user();
