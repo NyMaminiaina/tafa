@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { deleteMessageForAll, deleteMessageForMe } from "../api/api";
 import Navbar from "../components/Navbar";
@@ -85,6 +85,13 @@ const Messages: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [remainingMessages, setRemainingMessages] = useState<number | null>(null);
   const [showProfileInfo, setShowProfileInfo] = useState(false);
+
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
+  const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const previousScrollHeight = useRef<number>(0);
 
   // action 
   const [actionLoading, setActionLoading] = useState(false);
@@ -251,21 +258,82 @@ const Messages: React.FC = () => {
   const handleSelectConversation = async (conv: Conversation) => {
     setActiveConversation(conv);
     setShowProfileInfo(true);
-    setMessages([]); // ← Vider les anciens messages immédiatement
-    setLoadingMessages(true); // ← Activer le chargement
+    setMessages([]);
+    setMessagesPage(1);
+    setHasMoreMessages(true);
+    setAllMessagesLoaded(false);
+    setLoadingMessages(true);
     navigate(`/messages?userId=${conv.other_user.id}`, { replace: true });
 
     try {
-      const data = await getMessages(conv.id);
-      setMessages(data.messages || []);
+      const data = await getMessages(conv.id, 1); // page 1
+      const fetchedMessages = data.messages || [];
+      setMessages(fetchedMessages.reverse())
       setLastActivity(data.last_seen || null);
-      setIsNewConversation(!data.messages || data.messages.length === 0);
+      setIsNewConversation(!fetchedMessages || fetchedMessages.length === 0);
+      setHasMoreMessages(data.has_more || fetchedMessages.length >= 20);
     } catch (error) {
       console.error("Erreur messages:", error);
     } finally {
-      setLoadingMessages(false); // ← Désactiver le chargement
+      setLoadingMessages(false);
     }
   };
+
+  const loadMoreMessages = async () => {
+    if (!activeConversation || !hasMoreMessages || loadingMoreMessages) return;
+
+    setLoadingMoreMessages(true);
+    const container = messagesContainerRef.current;
+    if (container) {
+      previousScrollHeight.current = container.scrollHeight;
+    }
+
+    const nextPage = messagesPage + 1;
+
+    try {
+      const data = await getMessages(activeConversation.id, nextPage);
+      const olderMessages = data.messages || [];
+
+      if (olderMessages.length === 0) {
+        setHasMoreMessages(false);
+        setAllMessagesLoaded(true);
+      } else {
+        setMessages(prev => [...olderMessages.reverse(), ...prev]);
+        setMessagesPage(nextPage);
+        setHasMoreMessages(data.has_more || olderMessages.length >= 20);
+
+        // Restaurer la position du scroll après ajout
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - previousScrollHeight.current;
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Erreur chargement anciens messages:", error);
+    } finally {
+      setLoadingMoreMessages(false);
+    }
+  };
+
+  // Détecter quand l'utilisateur scrolle en haut pour charger plus de messages
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container || loadingMoreMessages || !hasMoreMessages) return;
+
+    if (container.scrollTop <= 50) {
+      loadMoreMessages();
+    }
+  }, [loadingMoreMessages, hasMoreMessages, activeConversation]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   const handleSendMessage = async () => {
     if (isBlocked) {
@@ -445,8 +513,17 @@ const Messages: React.FC = () => {
 
     const pollMessages = async () => {
       try {
-        const data = await getMessages(activeConversation.id);
-        setMessages(data.messages || []);
+        const data = await getMessages(activeConversation.id, 1); 
+        const newMessages = data.messages || [];
+        if (newMessages.length > 0) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const uniqueNewMessages = newMessages
+              .filter(m => !existingIds.has(m.id))
+              .reverse(); // 🔥 ordre croissant
+            return [...prev, ...uniqueNewMessages]; // ajoute à la fin
+          });
+        }
         setLastActivity(data.last_seen || null);
       } catch (error) {
         console.error("Erreur refresh messages:", error);
@@ -683,162 +760,240 @@ const Messages: React.FC = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 theme-bg-secondary custom-scrollbar">
-                  {isNewConversation ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <img
-                        src={getAvatarUrl(activeConversation?.other_user.avatar)}
-                        className="w-28 h-28 md:w-35 md:h-35 rounded-full object-cover mb-4 border-4 border-blue-100"
-                      />
-                      <h3 className="text-lg font-bold theme-text-primary">
-                        Nouvelle conversation avec{" "}
-                        {activeConversation?.other_user.firstname}{" "}
-                        {activeConversation?.other_user.name}
-                      </h3>
-                      <p className="theme-text-secondary text-sm mb-4">
-                        Envoie le premier message pour briser la glace !
-                      </p>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {[
-                          "Salut ! Comment vas-tu ? 👋",
-                          "Hey ! Ton profil m'a beaucoup plu 😊",
-                          "On a des intérêts en commun 😄",
-                          "Hello ! Content(e) qu'on ait matché ! 😊",
-                          "Ta photo de profil est super, elle a été prise où ? 📸",
-                          "Hey ! Ravi(e) de te parler, j'espère que tu passes une bonne journée. ☀️"
-                        ].map((text, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setNewMessage(text)}
-                            className="px-3 py-2 theme-bg-secondary theme-text-primary rounded-full text-xs md:text-sm border theme-border"
-                          >
-                            {text}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : loadingMessages ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-4">
-                      <div className="w-20 h-20 bg-gray-200 rounded-full animate-pulse" />
-                      <div className="w-48 h-4 bg-gray-200 rounded animate-pulse" />
-                      <div className="w-32 h-3 bg-gray-200 rounded animate-pulse" />
-                    </div>
-                  ) : (
-                    messages.map((msg, index) => (
-                      <React.Fragment key={msg.id}>
-                        {shouldShowSeparator(msg, messages[index - 1]) && (
-                          <div className="flex justify-center my-3">
-                            <span className="text-[12px] text-gray-400">
-                              {formatSeparatorDate(msg.created_at)}
-                            </span>
+                <div className="flex-1 flex flex-col theme-bg-secondary overflow-hidden">
+                  {/* BANNIÈRE D'ASSISTANCE FIXE */}
+                  {messages.filter(msg => msg.content === MATCH_SYSTEM_MESSAGE).map((msg) => (
+                    <div key={msg.id} className="flex-shrink-0 px-4 pt-4 md:px-6 md:pt-6 pb-2 border-b border-pink-100/50">
+                      <div className="flex justify-center w-full">
+                        {msg.related_user ? (
+                          <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-full bg-gradient-to-br from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/20 rounded-2xl border-2 border-pink-200 dark:border-pink-800 shadow-lg">
+                            <div className="relative">
+                              <img
+                                src={getAvatarUrl(msg.related_user.avatar)}
+                                alt={getDisplayName(msg.related_user)}
+                                className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-[3px] border-pink-400 shadow-xl"
+                                onError={(e) => { (e.target as HTMLImageElement).src = "/default-avatar.png"; }}
+                              />
+                              <span className="absolute -bottom-1 -right-1 text-2xl">🎉</span>
+                            </div>
+                            <p className="text-center text-sm font-medium px-4 theme-text-primary">
+                              Vous avez matché avec{" "}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/messages?userId=${msg.related_user!.id}`);
+                                }}
+                                className="text-pink-500 font-bold underline hover:text-pink-600 transition-colors"
+                              >
+                                {getDisplayName(msg.related_user)}
+                              </button>
+                              {" "}! Cliquez pour discuter.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="theme-bg-primary theme-text-primary rounded-2xl px-4 py-2 text-sm shadow-sm border theme-border">
+                            {msg.content}
                           </div>
                         )}
-                        <div
-                          className={`flex ${msg.content === MATCH_SYSTEM_MESSAGE ? "justify-center" : msg.is_mine ? "justify-end" : "justify-start"} w-full mb-2`}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* ZONE SCROLLABLE */}
+                  <div
+                    ref={messagesContainerRef}
+                    className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar"
+                  >
+                    {/* Indicateur de chargement en haut */}
+                    {loadingMoreMessages && (
+                      <div className="flex justify-center py-3">
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full theme-bg-primary border theme-border shadow-sm">
+                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-xs text-gray-500 font-medium">Chargement...</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bouton "Voir les messages précédents" */}
+                    {hasMoreMessages && !loadingMoreMessages && messages.length > 0 && (
+                      <div className="flex justify-center py-2">
+                        <button
+                          onClick={loadMoreMessages}
+                          className="px-5 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-full transition-all duration-200 shadow-sm"
                         >
-                          <div
-                            className={`flex items-start gap-2 group ${msg.is_mine ? "flex-row" : "flex-row-reverse"
-                              } max-w-[90%] sm:max-w-[80%] md:max-w-[65%]`}
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                const menuWidth = 176;
-                                const menuHeight = msg.is_mine ? 130 : 90;
-                                const openUp = rect.bottom + menuHeight > window.innerHeight;
-                                setMenuCoords({
-                                  top: openUp ? rect.top - menuHeight - 6 : rect.bottom + 6,
-                                  left: msg.is_mine
-                                    ? rect.right - menuWidth
-                                    : rect.left,
-                                });
-                                setOpenMenuId(openMenuId === msg.id ? null : msg.id);
-                              }}
-                              className="flex-shrink-0 opacity-0 group-hover:opacity-100 
-                                          theme-text-secondary hover:theme-primary-text
-                                          transition mt-1 text-lg px-2 py-1 rounded-lg 
-                                          hover:bg-[var(--bg-secondary)]"
-                            >
-                              ⋮
-                            </button>
-                            <div
-                              className={`relative order-2 px-4 py-2 rounded-2xl text-sm shadow-sm w-fit
-                                ${msg.content.includes("supprimé")
-                                  ? "theme-bg-secondary theme-text-secondary italic rounded-2xl"
-                                  : msg.is_mine
-                                    ? "theme-primary text-white rounded-tr-none"
-                                    : "theme-bg-primary theme-text-primary rounded-tl-none border theme-border"
-                                }
-                              `}
-                            >
-                              <p className={`break-words whitespace-pre-wrap ${msg.content.includes("supprimé") ? "text-gray-400 italic text-center" : ""}`}>
-                                {msg.content === MATCH_SYSTEM_MESSAGE && msg.related_user ? (
-                                  <div className="flex flex-col items-center justify-center gap-6 py-8 w-full">
-                                    <img
-                                      src={getAvatarUrl(msg.related_user.avatar)}
-                                      alt={getDisplayName(msg.related_user)}
-                                      className="w-36 h-36 rounded-full object-cover border-[3px] border-pink-400 shadow-xl"
-                                      onError={(e) => { (e.target as HTMLImageElement).src = "/default-avatar.png"; }}
-                                    />
-                                    <p className="text-center text-lg font-medium px-4">
-                                      🎉 Vous avez matché avec{" "}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate(`/messages?userId=${msg.related_user!.id}`);
-                                        }}
-                                        className="text-pink-400 font-bold underline hover:text-pink-300"
-                                      >
-                                        {getDisplayName(msg.related_user)}
-                                      </button>
-                                      {" "}! Cliquez pour discuter.
-                                    </p>
-                                  </div>
-                                ) : (
-                                  msg.content
-                                )}
-                              </p>
-                              {openMenuId === msg.id && (
-                                <div
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{
-                                    position: "fixed",
-                                    top: `${menuCoords.top}px`,
-                                    left: `${menuCoords.left}px`,
-                                    zIndex: 99999,
-                                  }}
-                                  className="w-44 theme-bg-primary border theme-border rounded-xl shadow-lg overflow-hidden"
-                                >
-                                  <button
-                                    onClick={() => { handleDeleteForMe(msg.id); setOpenMenuId(null); }}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-200 dark:hover:bg-zinc-800"
-                                  >
-                                    Supprimer pour moi
-                                  </button>
-                                  {msg.is_mine && (
-                                    <button
-                                      onClick={() => { handleDeleteForAll(msg.id); setOpenMenuId(null); }}
-                                      className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-zinc-800"
-                                    >
-                                      Supprimer pour tout le monde
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => setOpenMenuId(null)}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800"
-                                  >
-                                    Annuler
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                          ↑ Voir les messages précédents
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Tous les messages chargés */}
+                    {allMessagesLoaded && messages.length > 0 && (
+                      <div className="flex justify-center py-3">
+                        <div className="flex items-center gap-3 w-full max-w-xs">
+                          <div className="flex-1 h-px bg-gray-300 dark:bg-zinc-700"></div>
+                          <span className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium whitespace-nowrap">
+                            Début de la conversation
+                          </span>
+                          <div className="flex-1 h-px bg-gray-300 dark:bg-zinc-700"></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* État vide */}
+                    {isNewConversation ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                        <div className="relative mb-6">
+                          <img
+                            src={getAvatarUrl(activeConversation?.other_user.avatar)}
+                            className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-blue-100 dark:border-blue-900 shadow-xl"
+                          />
+                          <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg shadow-lg">
+                            👋
                           </div>
                         </div>
-                      </React.Fragment>
-                    ))
-                  )}
-                  <div ref={scrollRef} />
+                        <h3 className="text-lg font-bold theme-text-primary mb-2">
+                          Nouvelle conversation avec{" "}
+                          {activeConversation?.other_user.firstname}{" "}
+                          {activeConversation?.other_user.name}
+                        </h3>
+                        <p className="theme-text-secondary text-sm mb-6">
+                          Envoyez le premier message pour briser la glace !
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                          {[
+                            "Salut ! Comment vas-tu ? 👋",
+                            "Hey ! Ton profil m'a beaucoup plu 😊",
+                            "On a des intérêts en commun 😄",
+                            "Hello ! Content(e) qu'on ait matché ! 😊",
+                            "Ta photo de profil est super, elle a été prise où ? 📸",
+                            "Hey ! Ravi(e) de te parler, j'espère que tu passes une bonne journée. ☀️"
+                          ].map((text, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setNewMessage(text)}
+                              className="px-4 py-2.5 theme-bg-primary theme-text-primary rounded-full text-xs md:text-sm border theme-border hover:shadow-md hover:scale-105 transition-all duration-200"
+                            >
+                              {text}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : loadingMessages ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-6 py-8">
+                        <div className="relative">
+                          <div className="w-20 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full animate-pulse" />
+                          <div className="absolute bottom-0 right-0 w-6 h-6 bg-gray-300 dark:bg-zinc-600 rounded-full animate-pulse" />
+                        </div>
+                        <div className="space-y-3 w-full max-w-xs">
+                          <div className="h-4 bg-gray-200 dark:bg-zinc-700 rounded animate-pulse w-3/4 mx-auto" />
+                          <div className="h-3 bg-gray-200 dark:bg-zinc-700 rounded animate-pulse w-1/2 mx-auto" />
+                        </div>
+                      </div>
+                    ) : (
+                      messages
+                        .filter(msg => msg.content !== MATCH_SYSTEM_MESSAGE)
+                        .map((msg, index, arr) => (
+                          <React.Fragment key={msg.id}>
+                            {/* Séparateur de date */}
+                            {shouldShowSeparator(msg, arr[index - 1]) && (
+                              <div className="flex justify-center my-4">
+                                <span className="text-[11px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-zinc-800/50 px-3 py-1 rounded-full font-medium">
+                                  {formatSeparatorDate(msg.created_at)}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Message */}
+                            <div
+                              className={`flex ${msg.is_mine ? "justify-end" : "justify-start"} w-full mb-2 animate-fadeIn`}
+                            >
+                              <div
+                                className={`flex items-end gap-2 group ${msg.is_mine ? "flex-row-reverse" : "flex-row"} max-w-[85%] sm:max-w-[75%] md:max-w-[65%]`}
+                              >
+                                {/* Bouton menu ⋮ */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const menuWidth = 176;
+                                    const menuHeight = msg.is_mine ? 130 : 90;
+                                    const openUp = rect.bottom + menuHeight > window.innerHeight;
+                                    setMenuCoords({
+                                      top: openUp ? rect.top - menuHeight - 6 : rect.bottom + 6,
+                                      left: msg.is_mine ? rect.right - menuWidth : rect.left,
+                                    });
+                                    setOpenMenuId(openMenuId === msg.id ? null : msg.id);
+                                  }}
+                                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 
+                              text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
+                              transition-all mt-1 text-lg px-1.5 py-0.5 rounded-lg 
+                              hover:bg-gray-100 dark:hover:bg-zinc-700/50 mb-1"
+                                >
+                                  ⋮
+                                </button>
+
+                                {/* Bulle de message */}
+                                <div
+                                  className={`relative px-4 py-2.5 rounded-2xl text-sm shadow-sm
+                    ${msg.content.includes("supprimé")
+                                      ? "bg-gray-100 dark:bg-zinc-800 text-gray-400 italic rounded-2xl"
+                                      : msg.is_mine
+                                        ? "bg-blue-500 text-white rounded-br-md"
+                                        : "theme-bg-primary theme-text-primary rounded-bl-md border theme-border"
+                                    }
+                  `}
+                                >
+                                  <p className={`break-words whitespace-pre-wrap leading-relaxed ${msg.content.includes("supprimé") ? "text-gray-400 italic text-center text-xs" : "text-sm"}`}>
+                                    {msg.content}
+                                  </p>
+
+                                  {/* Heure du message */}
+                                  <span className={`text-[10px] mt-1 block text-right ${msg.is_mine ? 'text-blue-100' : 'text-gray-400'}`}>
+                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+
+                                  {/* Menu contextuel */}
+                                  {openMenuId === msg.id && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        position: "fixed",
+                                        top: `${menuCoords.top}px`,
+                                        left: `${menuCoords.left}px`,
+                                        zIndex: 99999,
+                                      }}
+                                      className="w-44 theme-bg-primary border theme-border rounded-xl shadow-2xl overflow-hidden backdrop-blur-sm"
+                                    >
+                                      <button
+                                        onClick={() => { handleDeleteForMe(msg.id); setOpenMenuId(null); }}
+                                        className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                      >
+                                        🗑 Supprimer pour moi
+                                      </button>
+                                      {msg.is_mine && (
+                                        <button
+                                          onClick={() => { handleDeleteForAll(msg.id); setOpenMenuId(null); }}
+                                          className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors border-t border-gray-100 dark:border-zinc-800"
+                                        >
+                                          🗑 Supprimer pour tous
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => setOpenMenuId(null)}
+                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors border-t border-gray-100 dark:border-zinc-800"
+                                      >
+                                        Annuler
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        ))
+                    )}
+                    <div ref={scrollRef} />
+                  </div>
                 </div>
 
                 {/* Input Zone */}
