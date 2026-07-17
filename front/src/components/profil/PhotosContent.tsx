@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../utils/api_url";
 import { Trash2, Star, RefreshCw, Plus, Loader2 } from "lucide-react";
+import AlertModal from "../AlertModal";
+
 const BASE_URL = API_URL?.replace("/api", "");
 // 1. Ajoutez 'url' à l'interface
 interface Photo {
@@ -69,6 +71,7 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
   const [replacePhotoId, setReplacePhotoId] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<number | null>(null);
+  const [photoError, setPhotoError] = useState("");
 
   /* ==============================
      1. Charger les photos existantes
@@ -119,24 +122,34 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validation
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Veuillez sélectionner une vraie photo (JPG, PNG ou WEBP).');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+      e.target.value = '';
+      return;
+    }
+
     setError("");
     setSuccess("");
     setLoading(true);
 
     try {
-      // 🔥 Compression de l'image avant envoi
       const compressedFile = await compressImage(file, 800, 0.7);
-
       const formData = new FormData();
-      formData.append("image", compressedFile); // On envoie le fichier compressé
+      formData.append("image", compressedFile);
 
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/images/upload`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         body: formData,
       });
 
@@ -246,24 +259,34 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
     const file = e.target.files?.[0];
     if (!file || !replacePhotoId) return;
 
+    // Validation
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Veuillez sélectionner une vraie photo (JPG, PNG ou WEBP).');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+      e.target.value = '';
+      return;
+    }
+
     setError("");
     setSuccess("");
     setLoading(true);
 
     try {
-      // 🔥 Compression de l'image avant envoi
       const compressedFile = await compressImage(file, 800, 0.7);
-
       const formData = new FormData();
-      formData.append("image", compressedFile); // On envoie le fichier compressé
+      formData.append("image", compressedFile);
 
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/images/${replacePhotoId}/replace`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         body: formData,
       });
 
@@ -315,21 +338,8 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
         </div>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
-      <input
-        ref={replaceInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleReplaceChange}
-      />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/jfif" className="hidden" onChange={handleFileChange} />
+      <input ref={replaceInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/jfif" className="hidden" onChange={handleReplaceChange} />
 
       <p className="mb-6" style={{ color: 'var(--text-secondary)' }}>
         Vous pouvez ajouter jusqu'à 6 photos. Cliquez sur une photo pour voir les options.
@@ -405,17 +415,23 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
         {Array.from({ length: placeholdersCount }).map((_, i) => (
           <div
             key={`ph-${i}`}
-            onClick={handleAddClick}
-            className="aspect-square rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition"
+            onClick={loading ? undefined : handleAddClick}
+            className="aspect-square rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center transition"
             style={{
               borderColor: 'var(--color-primary)',
               color: 'var(--color-primary)',
+              cursor: loading ? 'default' : 'pointer',
+              opacity: loading ? 0.7 : 1,
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            <Plus size={32} />
-            <span className="font-bold text-sm mt-2">Ajouter</span>
+            {loading ? (
+              <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Plus size={32} />
+                <span className="font-bold text-sm mt-2">Ajouter</span>
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -466,6 +482,12 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
         </div>
       )}
 
+      <AlertModal
+        open={!!photoError}
+        type="error"
+        message={photoError}
+        onClose={() => setPhotoError("")}
+      />
 
     </div>
   );

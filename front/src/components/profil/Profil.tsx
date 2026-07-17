@@ -13,6 +13,7 @@ import {
 // Ajoutez ceci avec vos autres imports API
 import { getLikes } from "../../api/api";
 import ImageCropper from "../../components/ImageCropper";
+import AlertModal from "../../components/AlertModal";
 
 const BASE_URL = API_URL?.replace("/api", "");
 
@@ -104,6 +105,7 @@ function Profil() {
   const [cropperTarget, setCropperTarget] = useState<"avatar" | "gallery" | null>(null);
 
   const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [photoError, setPhotoError] = useState("");
 
   const [showCompletionBanner, setShowCompletionBanner] = useState(true);
 
@@ -244,6 +246,21 @@ function Profil() {
   const handleProfilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Veuillez sélectionner une vraie photo (JPG, PNG ou WEBP).');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+      e.target.value = '';
+      return;
+    }
+
     setCropperFile(file);
     setCropperTarget("avatar");
     e.target.value = "";
@@ -261,6 +278,21 @@ function Profil() {
   const handleGalleryPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Veuillez sélectionner une vraie photo (JPG, PNG ou WEBP).');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+      e.target.value = '';
+      return;
+    }
+
     setCropperFile(file);
     setCropperTarget("gallery");
     e.target.value = "";
@@ -442,8 +474,8 @@ function Profil() {
                   <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 p-2 rounded-full text-white shadow-lg border-2 border-white hover:scale-110 transition-transform bg-gray-300">
                     <Camera className="w-4 h-4 text-gray-500" />
                   </button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleProfilePhotoUpload} />
-                  <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" onChange={handleGalleryPhotoUpload} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleProfilePhotoUpload} />
+                  <input type="file" ref={galleryInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleGalleryPhotoUpload} />
                 </div>
 
                 {/* Nom & Métier (Contenu Nouveau) */}
@@ -471,7 +503,6 @@ function Profil() {
                 <div className="w-full space-y-3 mb-6">
                   <InfoItem icon={<Mail size={18} />} label="Email" value={userEmail} />
                   <InfoItem icon={<Cake size={18} />} label="Âge" value={userInfo?.age ? `${userInfo.age} ans` : "Non spécifié"} />
-                  Centres d'intérêt
                   <InfoItem icon={<Briefcase size={18} />} label="Profession" value={userInfo?.profession || "Non spécifié"} />
                   <InfoItem icon={<Languages size={18} />} label="Langues" value={userInfo?.langues?.map((l: any) => l.name).join(", ") || "Non spécifié"} />
 
@@ -553,15 +584,23 @@ function Profil() {
 
                     {userImages.length < 6 && (
                       <div
-                        onClick={handlePhotoClick}
-                        className="aspect-square rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition hover:opacity-80"
+                        onClick={uploadingIndex === -1 ? undefined : handlePhotoClick}
+                        className="aspect-square rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center transition hover:opacity-80"
                         style={{
                           borderColor: 'var(--color-primary)',
                           color: 'var(--color-primary)',
+                          cursor: uploadingIndex === -1 ? 'default' : 'pointer',
+                          opacity: uploadingIndex === -1 ? 0.7 : 1,
                         }}
                       >
-                        <Camera size={28} />
-                        <span className="font-bold text-xs mt-1">Ajouter</span>
+                        {uploadingIndex === -1 ? (
+                          <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Camera size={28} />
+                            <span className="font-bold text-xs mt-1">Ajouter</span>
+                          </>
+                        )}
                       </div>
                     )}
                   </>
@@ -720,6 +759,13 @@ function Profil() {
           onCancel={() => { setCropperFile(null); setCropperTarget(null); }}
         />
       )}
+
+      <AlertModal
+        open={!!photoError}
+        type="error"
+        message={photoError}
+        onClose={() => setPhotoError("")}
+      />
 
     </div>
   );
