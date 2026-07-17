@@ -63,17 +63,22 @@ class MessageController extends Controller
         $messages = collect();
 
         if ($echange) {
-            $messages = Message::where('id_echange', $echange->id)
+            $perPage = (int) request()->get('per_page', 20);
+
+            // Filtrer AVANT la pagination
+            $messagesQuery = Message::where('id_echange', $echange->id)
                 ->with('relatedUser.profile.images')
-                ->orderBy('created_at', 'asc')
-                ->get()
+                ->orderBy('created_at', 'desc');
+
+            $messages = $messagesQuery->paginate($perPage);
+
+            // Formater les messages APRÈS pagination
+            $formattedMessages = $messages->getCollection()
                 ->filter(function ($msg) use ($userId) {
                     $deletedFor = json_decode($msg->deleted_for_users, true);
-
                     if (!is_array($deletedFor)) {
                         $deletedFor = [];
                     }
-
                     return !in_array($userId, $deletedFor);
                 })
                 ->values()
@@ -97,6 +102,9 @@ class MessageController extends Controller
                     ];
                 });
 
+            // Remplacer la collection dans le paginateur
+            $messages->setCollection($formattedMessages);
+
             // Marquer les messages entrants comme lus
             Message::where('id_echange', $echange->id)
                 ->where('sender_id', $receiverId)
@@ -108,9 +116,12 @@ class MessageController extends Controller
         $otherUser = User::find($receiverId);
 
         return response()->json([
-            'messages' => $messages,
+            'messages' => $messages->items(),
             'id_echange' => $echange?->id,
-            'last_seen' => $otherUser?->last_seen
+            'last_seen' => $otherUser?->last_seen,
+            'has_more' => $messages->hasMorePages(),
+            'current_page' => $messages->currentPage(),
+            'total' => $messages->total(),
         ]);
     }
 
