@@ -239,6 +239,7 @@ const Utilisateurs = () => {
   const [newUserPhotos, setNewUserPhotos] = useState<File[]>([]);
   const [newUserError, setNewUserError] = useState<string | null>(null);
   const [newUserEmailError, setNewUserEmailError] = useState('');
+  const [photoError, setPhotoError] = useState('');
   const [checkingNewUserEmail, setCheckingNewUserEmail] = useState(false);
   const newUserEmailTimeout = useRef<number | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -1576,17 +1577,34 @@ const Utilisateurs = () => {
                         {Array.from({ length: 6 }).map((_, idx) => (
                           <label
                             key={idx}
+                            onClick={() => console.log('Clic sur label', idx)}
                             className={`w-full aspect-square rounded-xl overflow-hidden flex items-center justify-center relative cursor-pointer ${newUserPhotos[idx] ? '' : 'bg-gray-100 border-2 border-dashed border-gray-300'}`}
                             style={newUserPhotos[idx] ? { backgroundImage: `url(${URL.createObjectURL(newUserPhotos[idx])})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : {}}
                           >
                             {!newUserPhotos[idx] && <Plus className="text-gray-400" size={24} />}
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/jfif"
                               hidden
                               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                 if (!e.target.files || !e.target.files[0]) return;
-                                setCropperFile(e.target.files[0]);
+                                const file = e.target.files[0];
+
+                                if (!file.type.startsWith('image/')) {
+                                  setPhotoError('Veuillez sélectionner une vraie photo (JPG, PNG ou WEBP).');
+                                  e.currentTarget.value = '';
+                                  return;
+                                }
+
+                                const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+                                const ext = file.name.split('.').pop()?.toLowerCase();
+                                if (!ext || !allowedExtensions.includes(ext)) {
+                                  setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+                                  e.currentTarget.value = '';
+                                  return;
+                                }
+
+                                setCropperFile(file);
                                 setCropperIndex(idx);
                                 e.currentTarget.value = '';
                               }}
@@ -1794,6 +1812,13 @@ const Utilisateurs = () => {
           onCancel={() => { setCropperFile(null); setCropperIndex(null); }}
         />
       )}
+
+      <AlertModal
+        open={!!photoError}
+        type="error"
+        message={photoError}
+        onClose={() => setPhotoError("")}
+      />
 
     </div >
   );

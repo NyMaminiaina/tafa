@@ -521,17 +521,19 @@ function Profil() {
                   <InfoItem icon={<Heart size={18} />} label="Situation Amoureuse" value={userInfo?.situation_amoureuse ? (SITUATION_LABELS[userInfo.situation_amoureuse] || userInfo.situation_amoureuse) : "Non spécifié"} />
                   <InfoItem icon={<User size={18} />} label="Relation Recherchée" value={userInfo?.relations_rechercher || "Non spécifié"} />
                   <InfoItem icon={<Star size={18} />} label="Signe Astro" value={userInfo?.Zodiac_sign || "Non spécifié"} />
-                  <button
-                    onClick={() => setShowMoreInfo(true)}
-                    className="w-full py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-90 mt-3"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--color-primary)',
-                      border: '1px solid var(--color-primary)'
-                    }}
-                  >
-                    Plus d'infos
-                  </button>
+                  {!isMyProfile && (
+                    <button
+                      onClick={() => setShowMoreInfo(true)}
+                      className="w-full py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-90 mt-3"
+                      style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--color-primary)',
+                        border: '1px solid var(--color-primary)'
+                      }}
+                    >
+                      Plus d'infos
+                    </button>
+                  )}
                 </div>
 
                 {isMyProfile && (
