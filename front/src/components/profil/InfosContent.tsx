@@ -58,12 +58,12 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
   const [cities, setCities] = useState<City[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false); // 1. Nouvel état pour le message de succès
+  const [success, setSuccess] = useState(false);
 
   const [formData, setFormData] = useState({
     bio: "",
     profession: "",
-    city_id: "",
+    city_name: "",
     situation_amoureuse: "",
     relationship_type_id: "",
     date_de_naissance: "",
@@ -113,7 +113,7 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
           setFormData({
             bio: profileData.profile.bio || "",
             profession: profileData.profile.profession || "",
-            city_id: profileData.profile.city_id?.toString() || "", // ✅ IMPORTANT
+            city_name: profileData.profile.city?.name || "",
             situation_amoureuse: profileData.profile.situation_amoureuse || "",
             relationship_type_id: profileData.profile.relationship_type_id?.toString() || "",
             date_de_naissance: formattedDate,
@@ -189,7 +189,7 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
         body: JSON.stringify({
           bio: formData.bio,
           profession: formData.profession,
-          city_id: formData.city_id,
+          city_name: formData.city_name,
           Situation_amoureuse: formData.situation_amoureuse,
           relationship_type_id: formData.relationship_type_id,
           date_de_naissance: formData.date_de_naissance,
@@ -232,26 +232,23 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
 
               <div className="relative">
                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-
-                <select
-                  name="city_id"
-                  value={formData.city_id}
+                <input
+                  name="city_name"
+                  type="text"
+                  value={formData.city_name || ""}
                   onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold outline-none appearance-none"
+                  onInput={(e) => {
+                    const input = e.target as HTMLInputElement;
+                    input.value = input.value.replace(/\b\w/g, (char) => char.toUpperCase());
+                  }}
+                  placeholder="Entrez votre ville..."
+                  className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold outline-none"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     color: 'var(--text-primary)',
                     border: '1px solid var(--border-color)'
                   }}
-                >
-                  <option value="">Sélectionner une ville...</option>
-
-                  {cities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 

@@ -64,6 +64,7 @@ function Register() {
 
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperIndex, setCropperIndex] = useState<number | null>(null);
+  const [photoError, setPhotoError] = useState("");
 
   const availableInterests = [
     { id: 1, name: "Sport", icon: <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />, color: "text-red-500" },
@@ -737,13 +738,28 @@ function Register() {
                         <input
                           type="file"
                           hidden
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp,image/jfif"
                           onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              setCropperFile(e.target.files[0]);
-                              setCropperIndex(i);
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            if (!file.type.startsWith('image/')) {
+                              setPhotoError('Veuillez sélectionner une vraie photo (JPG, JFIF PNG ou WEBP).');
+                              e.target.value = '';
+                              return;
                             }
-                            e.target.value = "";
+
+                            const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+                            const ext = file.name.split('.').pop()?.toLowerCase();
+                            if (!ext || !allowedExtensions.includes(ext)) {
+                              setPhotoError('Formats acceptés : JPG, PNG, WEBP, JFIF');
+                              e.target.value = '';
+                              return;
+                            }
+
+                            setCropperFile(file);
+                            setCropperIndex(i);
+                            e.target.value = '';
                           }}
                         />
                       </label>
@@ -1114,6 +1130,13 @@ function Register() {
         type="error"
         message={errorMessage}
         onClose={() => setShowErrorModal(false)}
+      />
+
+      <AlertModal
+        open={!!photoError}
+        type="error"
+        message={photoError}
+        onClose={() => setPhotoError("")}
       />
 
     </div>

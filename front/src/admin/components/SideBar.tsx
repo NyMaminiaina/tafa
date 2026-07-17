@@ -94,7 +94,17 @@ export default function SideBar({
                         return (
                             <button
                                 key={link.url}
-                                onClick={() => onTabChange(link.url)}
+                                onClick={() => {
+                                    onTabChange(link.url);
+                                    const routes: Record<TabType, string> = {
+                                        stats: '/admin/accueil',
+                                        users: '/admin/utilisateurs',
+                                        chat: '/admin/chat',
+                                        ban: '/admin/blocage',
+                                        more: '/admin/accueil',
+                                    };
+                                    navigate(routes[link.url] || '/admin/accueil');
+                                }}
                                 className={`w-full flex items-center space-x-3 p-3 rounded-lg transition duration-150 ${isActive
                                     ? 'bg-sky-600 text-white font-bold shadow-md'
                                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'

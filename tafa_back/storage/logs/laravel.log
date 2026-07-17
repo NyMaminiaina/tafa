@@ -1501,6 +1501,7 @@
 "} 
 [2026-07-16 06:24:18] local.DEBUG: {"id":1,"name":"Mioty","firstname":"Heninkaja","email":"mioty@gmail.com","email_verified_at":null,"is_admin":0,"is_system":0,"created_at":"2026-07-15T11:48:44.000000Z","updated_at":"2026-07-15T12:49:14.000000Z","last_seen":"2026-07-15 12:49:14","created_by_admin":0}  
 [2026-07-16 07:24:27] local.DEBUG: {"id":1,"name":"Mioty","firstname":"Heninkaja","email":"mioty@gmail.com","email_verified_at":null,"is_admin":0,"is_system":0,"created_at":"2026-07-15T11:48:44.000000Z","updated_at":"2026-07-16T06:28:15.000000Z","last_seen":"2026-07-16 06:28:15","created_by_admin":0}  
+<<<<<<< HEAD
 [2026-07-16 07:45:58] local.ERROR: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'localisation' in 'field list' (Connection: mysql, SQL: update `profiles` set `localisation` = Manakambahiny, `profiles`.`updated_at` = 2026-07-16 07:45:58 where `id` = 1) {"userId":1,"exception":"[object] (Illuminate\\Database\\QueryException(code: 42S22): SQLSTATE[42S22]: Column not found: 1054 Unknown column 'localisation' in 'field list' (Connection: mysql, SQL: update `profiles` set `localisation` = Manakambahiny, `profiles`.`updated_at` = 2026-07-16 07:45:58 where `id` = 1) at C:/xampp/htdocs/tafa/tafa_back/vendor/laravel/framework/src/Illuminate/Database/Connection.php:829)
 [stacktrace]
 #0 C:/xampp/htdocs/tafa/tafa_back/vendor/laravel/framework/src/Illuminate/Database/Connection.php(783): Illuminate/Database/Connection->runQueryCallback('update `profile...', Array, Object(Closure))
@@ -2349,3 +2350,5 @@
 #49 C:/xampp/htdocs/tafa/tafa_back/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php(16): require_once('C://xampp//htdocs...')
 #50 {main}
 "} 
+=======
+>>>>>>> origin/main

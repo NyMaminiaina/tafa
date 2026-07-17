@@ -207,9 +207,9 @@ const [, setMessages] = useState<any[]>([]);
   }
 
   return (
-    <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen">
+    <div className="p-3 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen overflow-x-auto">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-3 sm:gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
             <MessageSquare className="text-sky-600" size={32} />
@@ -220,7 +220,7 @@ const [, setMessages] = useState<any[]>([]);
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
             onClick={() => fetchConversations(currentPage)}
             disabled={isLoading}
@@ -240,7 +240,7 @@ const [, setMessages] = useState<any[]>([]);
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow border border-gray-200 p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -310,7 +310,7 @@ const [, setMessages] = useState<any[]>([]);
 
       {/* Conversations Table */}
       <div className="bg-white rounded-2xl shadow border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="min-w-[500px] sm:min-w-0 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -395,7 +395,7 @@ const [, setMessages] = useState<any[]>([]);
         </div>
 
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} ({totalConversations} conversations)
           </div>
