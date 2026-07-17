@@ -55,6 +55,8 @@ function App() {
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/payment-status" element={<PaymentStatus />} />
 
+        <Route path="/profil/me" element={<Profil />} />
+
         <Route path="/admin" element={<LoginComponent />} />
         <Route path="/admin/accueil" element={<Accueil />} />
         <Route path="/admin/utilisateurs" element={<Accueil />} />

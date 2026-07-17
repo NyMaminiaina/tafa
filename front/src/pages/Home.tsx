@@ -642,7 +642,16 @@ function Home() {
                     {/* Overlay des informations (Nom, Age, Ville) + boutons d'action */}
                     <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 bg-gradient-to-t from-black/70 via-black/50 to-transparent text-white">
                       <h1 className="text-2xl sm:text-4xl font-black">
-                        {currentProfile.name}, {currentProfile.age}
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/profil/${currentProfile.id}`);
+                          }}
+                          className="hover:underline cursor-pointer"
+                        >
+                          {currentProfile.name}
+                        </span>
+                        , {currentProfile.age}
                       </h1>
                       <p className="flex items-center gap-2 mt-1 font-bold opacity-90 text-sm sm:text-lg">
                         <FaMapMarkerAlt className="text-red-500 shrink-0" /> {currentProfile.location}

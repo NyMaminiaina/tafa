@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../utils/api_url";
 import { Trash2, Star, RefreshCw, Plus, Loader2 } from "lucide-react";
 import AlertModal from "../AlertModal";
+import ImageCropper from "../ImageCropper";
 
 const BASE_URL = API_URL?.replace("/api", "");
 // 1. Ajoutez 'url' à l'interface
@@ -71,7 +72,11 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
   const [replacePhotoId, setReplacePhotoId] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<number | null>(null);
+
   const [photoError, setPhotoError] = useState("");
+  const [cropperFile, setCropperFile] = useState<File | null>(null);
+  const [cropperTarget, setCropperTarget] = useState<"add" | "replace" | null>(null);
+  const [cropperReplaceId, setCropperReplaceId] = useState<number | null>(null);
 
   /* ==============================
      1. Charger les photos existantes
@@ -137,37 +142,9 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
       return;
     }
 
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      const compressedFile = await compressImage(file, 800, 0.7);
-      const formData = new FormData();
-      formData.append("image", compressedFile);
-
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/images/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setSuccess("Photo ajoutée avec succès !");
-        fetchPhotos();
-        setTimeout(() => setSuccess(""), 3000);
-      } else {
-        setError(data.message || "Erreur lors de l'upload");
-      }
-    } catch (err) {
-      setError("Erreur de connexion au serveur");
-    } finally {
-      setLoading(false);
-      e.target.value = "";
-    }
+    setCropperFile(file);
+    setCropperTarget("add");
+    e.target.value = "";
   };
 
   /* ==============================
@@ -257,7 +234,7 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
 
   const handleReplaceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !replacePhotoId) return;
+    if (!file) return;
 
     // Validation
     if (!file.type.startsWith('image/')) {
@@ -274,37 +251,56 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
       return;
     }
 
+    setCropperFile(file);
+    setCropperTarget("replace");
+    e.target.value = "";
+  };
+
+  const handleCropDone = async (croppedFile: File) => {
+    setCropperFile(null);
+    const target = cropperTarget;
+    setCropperTarget(null);
+
     setError("");
     setSuccess("");
     setLoading(true);
 
     try {
-      const compressedFile = await compressImage(file, 800, 0.7);
+      const compressedFile = await compressImage(croppedFile, 800, 0.7);
       const formData = new FormData();
       formData.append("image", compressedFile);
 
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/images/${replacePhotoId}/replace`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-        body: formData,
-      });
+      let res;
+
+      if (target === "replace" && replacePhotoId) {
+        res = await fetch(`${API_URL}/images/${replacePhotoId}/replace`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          body: formData,
+        });
+        setReplacePhotoId(null);
+      } else {
+        res = await fetch(`${API_URL}/images/upload`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          body: formData,
+        });
+      }
 
       const data = await res.json();
 
       if (res.ok) {
-        setSuccess("Photo remplacée avec succès !");
+        setSuccess(target === "replace" ? "Photo remplacée avec succès !" : "Photo ajoutée avec succès !");
         fetchPhotos();
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        setError(data.message || "Erreur lors du remplacement");
+        setError(data.message || "Erreur lors de l'upload");
       }
     } catch (err) {
       setError("Erreur de connexion au serveur");
     } finally {
       setLoading(false);
-      setReplacePhotoId(null);
-      e.target.value = "";
     }
   };
 
@@ -480,6 +476,14 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
             </div>
           </div>
         </div>
+      )}
+
+      {cropperFile && (
+        <ImageCropper
+          file={cropperFile}
+          onCropDone={handleCropDone}
+          onCancel={() => { setCropperFile(null); setCropperTarget(null); }}
+        />
       )}
 
       <AlertModal

@@ -106,6 +106,7 @@ function Profil() {
 
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [photoError, setPhotoError] = useState("");
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
 
   const [showCompletionBanner, setShowCompletionBanner] = useState(true);
 
@@ -142,40 +143,45 @@ function Profil() {
       }
 
       try {
-        // Étape 1 : Récupérer les informations de base du profil (Nom, Bio, Photos)
-        const response = await fetch(`${API_URL}/profile`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-        });
-        const data = await response.json();
+        let response;
 
+        if (isMyProfile) {
+          response = await fetch(`${API_URL}/profile`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          });
+        } else {
+          response = await fetch(`${API_URL}/profiles/${profileId}`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          });
+        }
+
+        const data = await response.json();
+        // console.log("Données reçues:", data);
 
         if (data.profile) setUserInfo(data.profile);
         if (data.images) setUserImages(data.images);
+        else if (data.profile?.images) setUserImages(data.profile.images);
 
-        // Étape 2 : Récupérer les statistiques réelles (Likes et Matches)
-        // On utilise getLikes() pour être cohérent avec Likes.tsx
-        const likesRes = await getLikes();
-
-        // Extraction sécurisée des données
-        const likesData = likesRes?.likes?.data || likesRes?.likes || [];
-        const matchesData = likesRes?.matches?.data || likesRes?.matches || [];
-
-        // Mise à jour de l'affichage des compteurs
-        setStats({
-          likes: likesRes?.count || likesData.length,
-          matches: matchesData.length,
-          views: 50
-        });
+        if (isMyProfile) {
+          const likesRes = await getLikes();
+          const likesData = likesRes?.likes?.data || likesRes?.likes || [];
+          const matchesData = likesRes?.matches?.data || likesRes?.matches || [];
+          setStats({
+            likes: likesRes?.count || likesData.length,
+            matches: matchesData.length,
+            views: 50
+          });
+        }
 
       } catch (err) {
-        console.error("Erreur lors de la synchronisation du profil :", err);
+        console.error("Erreur chargement profil:", err);
       } finally {
-        setIsProfileLoading(false); // ← ligne à ajouter
+        setIsProfileLoading(false);
       }
     };
 
     fetchProfileAndStats();
-  }, []); // S'exécute une seule fois au chargement du composant
+  }, [profileId]);
 
   // suivant et precedent par clavier 
   useEffect(() => {
@@ -471,11 +477,17 @@ function Profil() {
                       />
                     )}
                   </div>
-                  <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 p-2 rounded-full text-white shadow-lg border-2 border-white hover:scale-110 transition-transform bg-gray-300">
-                    <Camera className="w-4 h-4 text-gray-500" />
-                  </button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleProfilePhotoUpload} />
-                  <input type="file" ref={galleryInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleGalleryPhotoUpload} />
+                  {isMyProfile && (
+                    <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 p-2 rounded-full text-white shadow-lg border-2 border-white hover:scale-110 transition-transform bg-gray-300">
+                      <Camera className="w-4 h-4 text-gray-500" />
+                    </button>
+                  )}
+                  {isMyProfile && (
+                    <>
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleProfilePhotoUpload} />
+                      <input type="file" ref={galleryInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/jfif" onChange={handleGalleryPhotoUpload} />
+                    </>
+                  )}
                 </div>
 
                 {/* Nom & Métier (Contenu Nouveau) */}
@@ -509,15 +521,30 @@ function Profil() {
                   <InfoItem icon={<Heart size={18} />} label="Situation Amoureuse" value={userInfo?.situation_amoureuse ? (SITUATION_LABELS[userInfo.situation_amoureuse] || userInfo.situation_amoureuse) : "Non spécifié"} />
                   <InfoItem icon={<User size={18} />} label="Relation Recherchée" value={userInfo?.relations_rechercher || "Non spécifié"} />
                   <InfoItem icon={<Star size={18} />} label="Signe Astro" value={userInfo?.Zodiac_sign || "Non spécifié"} />
+                  <button
+                    onClick={() => setShowMoreInfo(true)}
+                    className="w-full py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-90 mt-3"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--color-primary)',
+                      border: '1px solid var(--color-primary)'
+                    }}
+                  >
+                    Plus d'infos
+                  </button>
                 </div>
 
-                <Link to="/modifier-profil" className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-bold transition-all hover:opacity-90 mb-3" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
-                  <Edit3 size={18} /> Modifier le profil
-                </Link>
+                {isMyProfile && (
+                  <>
+                    <Link to="/modifier-profil" className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-bold transition-all hover:opacity-90 mb-3" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+                      <Edit3 size={18} /> Modifier le profil
+                    </Link>
 
-                <Link to="/modifier-profil/parametres" className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-semibold transition-all hover:opacity-90" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
-                  <Settings size={18} /> Sécurité
-                </Link>
+                    <Link to="/modifier-profil/parametres" className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-semibold transition-all hover:opacity-90" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                      <Settings size={18} /> Sécurité
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -530,16 +557,11 @@ function Profil() {
                 <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>À propos</h3>
 
                 {/* Icône de modification */}
-                <button
-                  onClick={() => {
-                    setBioText(userInfo?.bio || ""); // Pré-remplissage
-                    setIsBioModalOpen(true);        // Ouverture modal
-                  }}
-                  className="p-2 rounded-xl transition-all hover:bg-slate-100"
-                  style={{ color: 'var(--color-primary)' }}
-                >
-                  <Pencil size={18} />
-                </button>
+                {isMyProfile && (
+                  <button onClick={() => { setBioText(userInfo?.bio || ""); setIsBioModalOpen(true); }} className="p-2 rounded-xl transition-all hover:bg-slate-100" style={{ color: 'var(--color-primary)' }}>
+                    <Pencil size={18} />
+                  </button>
+                )}
               </div>
 
               <p className="text-l leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
@@ -582,9 +604,8 @@ function Profil() {
                       </div>
                     ))}
 
-                    {userImages.length < 6 && (
-                      <div
-                        onClick={uploadingIndex === -1 ? undefined : handlePhotoClick}
+                    {isMyProfile && userImages.length < 6 && (
+                      <div onClick={uploadingIndex === -1 ? undefined : handlePhotoClick}
                         className="aspect-square rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center transition hover:opacity-80"
                         style={{
                           borderColor: 'var(--color-primary)',
@@ -607,18 +628,11 @@ function Profil() {
                 )}
               </div>
 
-              <Link
-                to="/modifier-profil/photos"
-                className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-semibold transition-all hover:opacity-90"
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-color)'
-                }}
-              >
-                <Edit3 size={16} />
-                Gérer mes photos
-              </Link>
+              {isMyProfile && (
+                <Link to="/modifier-profil/photos" className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-semibold transition-all hover:opacity-90" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                  <Edit3 size={16} /> Gérer mes photos
+                </Link>
+              )}
             </div>
 
             <div className="rounded-[2rem] p-8 shadow-sm mb-20 md:mb-0" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', borderWidth: '1px' }}>
@@ -766,6 +780,117 @@ function Profil() {
         message={photoError}
         onClose={() => setPhotoError("")}
       />
+
+      {/* MODAL PLUS D'INFOS */}
+      {showMoreInfo && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div
+            className="w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in duration-200 overflow-y-auto max-h-[90vh]"
+            style={{ backgroundColor: 'var(--bg-primary)' }}
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>
+                  <User size={20} />
+                </div>
+                <h2 className="font-black text-lg uppercase tracking-tight" style={{ color: 'var(--text-primary)' }}>Infos complètes</h2>
+              </div>
+              <button onClick={() => setShowMoreInfo(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Email</span>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userEmail}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Âge</span>
+                <div className="relative">
+                  <Cake className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.age ? `${userInfo.age} ans` : "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Ville</span>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.city?.name || userInfo?.localisation || "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Profession</span>
+                <div className="relative">
+                  <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.profession || "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Situation amoureuse</span>
+                <div className="relative">
+                  <Heart className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.situation_amoureuse ? (SITUATION_LABELS[userInfo.situation_amoureuse] || userInfo.situation_amoureuse) : "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Relation recherchée</span>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.relations_rechercher || "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Langues</span>
+                <div className="relative">
+                  <Languages className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.langues?.map((l: any) => l.name).join(", ") || "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Signe Astro</span>
+                <div className="relative">
+                  <Star className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                    {userInfo?.Zodiac_sign || "Non spécifié"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <span className="text-[10px] font-black uppercase ml-2" style={{ color: 'var(--text-secondary)' }}>Bio</span>
+              <div className="w-full p-5 rounded-[1.5rem] text-sm mt-2" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
+                {userInfo?.bio || "Aucune description disponible."}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
