@@ -672,7 +672,8 @@ function Home() {
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleLike(); }}
-                          className="bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center gap-2 border border-white/20 font-bold px-3 py-2.5 text-xs sm:text-sm"
+                          disabled={isLiking}
+                          className={`bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center gap-2 border border-white/20 font-bold px-3 py-2.5 text-xs sm:text-sm ${isLiking ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <FaHeart className="text-[#FF5A60] text-base sm:text-lg shrink-0" /> Like
                         </button>
