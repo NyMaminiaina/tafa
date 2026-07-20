@@ -284,8 +284,9 @@ class AdminController extends Controller
     public function getConversations(Request $request): JsonResponse
     {
         $perPage = $request->get('per_page', 20);
+        $userId = $request->get('user_id');
 
-        $conversations = DB::table('echanges as e')
+        $query = DB::table('echanges as e')
             ->join('users as u1', 'e.sender', '=', 'u1.id')
             ->join('users as u2', 'e.receiver', '=', 'u2.id')
             ->select(
@@ -298,9 +299,16 @@ class AdminController extends Controller
                 'u2.email as user_two_email',
                 'e.latestmessage as last_message',
                 'e.latestdate as last_message_at'
-            )
-            ->orderByDesc('e.latestdate')
-            ->paginate($perPage);
+            );
+
+        if ($userId) {
+            $query->where(function ($q) use ($userId) {
+                $q->where('e.sender', $userId)
+                    ->orWhere('e.receiver', $userId);
+            });
+        }
+
+        $conversations = $query->orderByDesc('e.latestdate')->paginate($perPage);
 
         return response()->json($conversations);
     }
@@ -313,5 +321,23 @@ class AdminController extends Controller
             'user',
             'payment'
         ])->get();
+    }
+
+    public function getCreatedAccounts()
+    {
+        $users = User::where('created_by_admin', 1)
+            ->with(['profile.images'])
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'firstname' => $user->firstname,
+                    'avatar' => $user->profile?->images->where('is_primary', true)->first()?->path ?? null,
+                    'email' => $user->email,
+                ];
+            });
+
+        return response()->json(['users' => $users]);
     }
 }

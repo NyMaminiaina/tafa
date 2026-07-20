@@ -124,9 +124,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-
-
-
     // Routes pour les likes
     Route::post('/likes/{id}', [LikeController::class, 'likeProfile']);
     Route::post('/dislikes/{id}', [LikeController::class, 'dislikeProfile']);
@@ -184,5 +181,8 @@ Route::prefix('admin')->group(function () {
         Route::put('/reports/{id}', [AdminController::class, 'updateReport']);
         Route::get('/blocks', [AdminController::class, 'getBlocks']);
         Route::get('/conversations', [AdminController::class, 'getConversations']);
+        
+        Route::get('/created-accounts', [AdminController::class, 'getCreatedAccounts']);
+        Route::post('/send-message-as', [MessageController::class, 'sendMessageAsUser']);
     });
 });

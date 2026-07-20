@@ -50,7 +50,8 @@ class MessageController extends Controller
     {
         /** @var \App\Models\User|null $user */
         $user = Auth::user();
-        $userId = $user->id;
+        // 🔥 Si admin, utiliser l'ID passé en paramètre
+        $userId = request()->get('admin_user_id') ? (int)request()->get('admin_user_id') : $user->id;
 
         // Mettre à jour ma dernière activité
         if ($user) {
@@ -256,5 +257,27 @@ class MessageController extends Controller
             'success' => true,
             'message' => $message
         ]);
+    }
+
+    public function sendMessageAsUser(Request $request)
+    {
+        $request->validate([
+            'sender_id' => 'required|exists:users,id',
+            'receiver_id' => 'required|exists:users,id',
+            'content' => 'required|string'
+        ]);
+
+        $echange = Echange::findOrCreateBetween($request->sender_id, $request->receiver_id);
+
+        $message = Message::create([
+            'id_echange' => $echange->id,
+            'sender_id' => $request->sender_id,
+            'receiver_id' => $request->receiver_id,
+            'content' => $request->content,
+        ]);
+
+        $echange->touchLatest($message->content, $message->created_at);
+
+        return response()->json(['message' => $message]);
     }
 }
