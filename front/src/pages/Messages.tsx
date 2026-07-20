@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { deleteMessageForAll, deleteMessageForMe } from "../api/api";
 import Navbar from "../components/Navbar";
@@ -200,10 +200,6 @@ const Messages: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   const handleStartConversation = async (userId: number) => {
     try {
       const res = await startConversation(userId);
@@ -302,7 +298,7 @@ const Messages: React.FC = () => {
         setMessagesPage(nextPage);
         setHasMoreMessages(data.has_more || olderMessages.length >= 20);
 
-        // Restaurer la position du scroll après ajout
+        // 🔥 Restaurer la position APRÈS le rendu
         requestAnimationFrame(() => {
           if (container) {
             const newScrollHeight = container.scrollHeight;
@@ -318,22 +314,22 @@ const Messages: React.FC = () => {
   };
 
   // Détecter quand l'utilisateur scrolle en haut pour charger plus de messages
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container || loadingMoreMessages || !hasMoreMessages) return;
+  // const handleScroll = useCallback(() => {
+  //   const container = messagesContainerRef.current;
+  //   if (!container || loadingMoreMessages || !hasMoreMessages) return;
 
-    if (container.scrollTop <= 50) {
-      loadMoreMessages();
-    }
-  }, [loadingMoreMessages, hasMoreMessages, activeConversation]);
+  //   if (container.scrollTop <= 50) {
+  //     loadMoreMessages();
+  //   }
+  // }, [loadingMoreMessages, hasMoreMessages, activeConversation]);
 
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
+  // useEffect(() => {
+  //   const container = messagesContainerRef.current;
+  //   if (!container) return;
 
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
+  //   container.addEventListener('scroll', handleScroll);
+  //   return () => container.removeEventListener('scroll', handleScroll);
+  // }, [handleScroll]);
 
   const handleSendMessage = async () => {
     if (isBlocked) {
@@ -353,6 +349,11 @@ const Messages: React.FC = () => {
     setMessages(prev => [...prev, tempMessage]);
     setNewMessage("");
     setIsNewConversation(false);
+
+    setTimeout(() => {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+
     setIsSending(true);
     try {
       const response = await sendMessageApi({
@@ -513,15 +514,23 @@ const Messages: React.FC = () => {
 
     const pollMessages = async () => {
       try {
-        const data = await getMessages(activeConversation.id, 1); 
+        const data = await getMessages(activeConversation.id, 1);
         const newMessages = data.messages || [];
         if (newMessages.length > 0) {
           setMessages(prev => {
             const existingIds = new Set(prev.map(m => m.id));
             const uniqueNewMessages = newMessages
-              .filter(m => !existingIds.has(m.id))
-              .reverse(); // 🔥 ordre croissant
-            return [...prev, ...uniqueNewMessages]; // ajoute à la fin
+              .filter((m: Message) => !existingIds.has(m.id))
+              .reverse();
+
+            // 🔥 AJOUTE ÇA : Scroll si nouveaux messages reçus
+            if (uniqueNewMessages.length > 0) {
+              setTimeout(() => {
+                scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+              }, 100);
+            }
+
+            return [...prev, ...uniqueNewMessages];
           });
         }
         setLastActivity(data.last_seen || null);
@@ -821,7 +830,7 @@ const Messages: React.FC = () => {
                           onClick={loadMoreMessages}
                           className="px-5 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-full transition-all duration-200 shadow-sm"
                         >
-                          ↑ Voir les messages précédents
+                          ↑ Précédents
                         </button>
                       </div>
                     )}

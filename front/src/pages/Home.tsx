@@ -697,9 +697,16 @@ function Home() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleLike(); }}
                           disabled={isLiking}
-                          className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 shadow-xl flex items-center justify-center text-white active:scale-90 transition-all duration-200 hover:bg-green-500/80 hover:border-green-400"
+                          className={`w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 shadow-xl flex items-center justify-center text-white active:scale-90 transition-all duration-200 hover:bg-green-500/80 hover:border-green-400 ${isLiking ? 'opacity-50' : ''}`}
                         >
-                          <FaHeart size={22} />
+                          {isLiking ? (
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                          ) : (
+                            <FaHeart size={22} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -714,7 +721,14 @@ function Home() {
                       <FaTelegramPlane size={25} />
                     </ActionButton>
                     <ActionButton type="heart" onClick={handleLike} disabled={isLiking}>
-                      <FaHeart size={25} />
+                      {isLiking ? (
+                        <svg className="animate-spin h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                      ) : (
+                        <FaHeart size={25} />
+                      )}
                     </ActionButton>
                   </div>
 
@@ -863,12 +877,12 @@ function ActionButton({ children, onClick, type, disabled, mobile,
 
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       disabled={disabled}
       className={`
         ${sizeClass} rounded-full flex items-center justify-center shadow-xl 
         transition-all hover:scale-110 active:scale-90 border shrink-0
-        ${disabled ? "opacity-50" : ""}
+        ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         ${isMessage ? "bg-gradient-to-br from-[#FF4DB8] to-[#4C6EF5] text-white border-transparent" : ""}
       `}
       style={

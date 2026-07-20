@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import fond from '../assets/images/fond.jpg';
 import { useTheme } from '../context/ThemeContext';
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 type LoginResponse = {
   token: string;
@@ -16,6 +17,7 @@ function LoginComponent() {
 
   const [email, setEmail] = useState<string>('faniah@gmail.com');
   const [password, setPassword] = useState<string>('password');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   useTheme();
@@ -136,15 +138,24 @@ function LoginComponent() {
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Mot de passe
             </label>
-            <input
-              type="password"
-              placeholder="Votre mot de passe"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-2xl text-base outline-none focus:ring-4 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
-              disabled={isLoading}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Votre mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3.5 rounded-2xl text-base outline-none focus:ring-4 focus:ring-cyan-500/20 focus:border-cyan-500 transition pr-12"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button

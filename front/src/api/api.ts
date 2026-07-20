@@ -246,7 +246,7 @@ export async function getConversations() {
 }
 
 // Récupérer les messages par ID d'utilisateur
-export async function getMessages(contactId: number, page: number = 1, perPage: number = 20) {
+export async function getMessages(contactId: number, page: number = 1, perPage: number = 15) {
   const token = localStorage.getItem("token");
   const res = await fetch(`${API_URL}/messages/${contactId}?page=${page}&per_page=${perPage}`, {
     headers: { Authorization: `Bearer ${token}` },
