@@ -241,7 +241,6 @@ const Utilisateurs = () => {
   const [newUserEmailError, setNewUserEmailError] = useState('');
   const [photoError, setPhotoError] = useState('');
   const [checkingNewUserEmail, setCheckingNewUserEmail] = useState(false);
-  const newUserEmailTimeout = useRef<number | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -657,32 +656,37 @@ const Utilisateurs = () => {
 
   const checkNewUserEmail = (emailToCheck: string) => {
     setNewUserEmail(emailToCheck);
-    if (newUserEmailTimeout.current) clearTimeout(newUserEmailTimeout.current);
+    setNewUserEmailError('');
 
-    if (!emailToCheck || !emailToCheck.includes('@')) {
-      setNewUserEmailError('');
-      return;
-    }
+    if (!emailToCheck || !emailToCheck.includes('@')) return;
 
-    newUserEmailTimeout.current = setTimeout(async () => {
-      setCheckingNewUserEmail(true);
-      try {
-        const response = await fetch(`${API_URL}/check-email?email=${encodeURIComponent(emailToCheck)}`);
-        const data = await response.json();
+    setCheckingNewUserEmail(true);
+    fetch(`${API_URL}/check-email?email=${encodeURIComponent(emailToCheck)}`)
+      .then(res => res.json())
+      .then(data => {
         if (data.exists) {
           setNewUserEmailError('Cet email est déjà utilisé');
-        } else {
-          setNewUserEmailError('');
         }
-      } catch {
-        setNewUserEmailError('');
-      } finally {
-        setCheckingNewUserEmail(false);
-      }
-    }, 600);
+      })
+      .catch(() => { })
+      .finally(() => setCheckingNewUserEmail(false));
   };
 
   const handleCreateUser = async (): Promise<void> => {
+    if (newUserEmail && !newUserEmailError) {
+      try {
+        const response = await fetch(`${API_URL}/check-email?email=${encodeURIComponent(newUserEmail)}`);
+        const data = await response.json();
+        if (data.exists) {
+          setNewUserEmailError('Cet email est déjà utilisé');
+          setNewUserError('Veuillez corriger les erreurs avant de créer.');
+          return;
+        }
+      } catch {
+        // si erreur réseau, on laisse passer
+      }
+    }
+
     if (!isNewUserStep4Complete) {
       setNewUserError('Veuillez compléter toutes les étapes et corriger les erreurs.');
       return;
@@ -715,7 +719,6 @@ const Utilisateurs = () => {
             const compressed = await compressImage(p, 800, 0.7);
             formData.append('file[]', compressed);
           } catch {
-            // Fallback to original file if compression fails
             formData.append('file[]', p);
           }
         }
@@ -745,7 +748,6 @@ const Utilisateurs = () => {
         setNewUserGoal('');
         setNewUserGenre('');
         setNewUserEmail('');
-        // setNewUserPassword('');
         setNewUserEmailError('');
         setNewUserPhotos([]);
         setNewUserError(null);
@@ -1700,7 +1702,11 @@ const Utilisateurs = () => {
                         <input
                           type="email"
                           value={newUserEmail}
-                          onChange={(e) => checkNewUserEmail(e.target.value)}
+                          onChange={(e) => {
+                            setNewUserEmail(e.target.value);
+                            setNewUserEmailError('');
+                          }}
+                          onBlur={(e) => checkNewUserEmail(e.target.value)}
                           className="w-full pl-10 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           placeholder="utilisateur@example.com"
                         />
@@ -1752,7 +1758,7 @@ const Utilisateurs = () => {
               </div>
               <button
                 onClick={handleCreateUser}
-                disabled={!isNewUserStep4Complete || isCreatingUser}
+                disabled={!isNewUserStep4Complete || isCreatingUser || checkingNewUserEmail}
                 className="w-full py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 transition disabled:opacity-50"
               >
                 {isCreatingUser ? 'Création en cours...' : 'Créer l’utilisateur'}

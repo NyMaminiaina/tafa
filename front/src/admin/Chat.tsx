@@ -1,75 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Search, MessageSquare, Users,  Download, RefreshCw,
-  Clock, AlertCircle, Calendar, Mail, 
+  Search, MessageSquare, Download, RefreshCw,
+  Clock, Calendar, Mail, Users, X
 } from 'lucide-react';
+import { FaPaperPlane, FaSmile } from 'react-icons/fa';
+import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 
-interface User {
+interface CreatedAccount {
   id: number;
   name: string;
+  firstname: string | null;
+  avatar: string | null;
   email: string;
 }
 
 interface Conversation {
   id: number;
-  user_one: User;
-  user_two: User;
+  user_one_id: number;
+  user_two_id: number;
+  user_one_name: string;
+  user_two_name: string;
+  user_one_email: string;
+  user_two_email: string;
   last_message_at: string | null;
+  last_message?: string;
+  created_at: string;
+}
+
+interface Message {
+  id: number;
+  content: string;
+  sender_id: number;
+  is_mine: boolean;
   created_at: string;
 }
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const Chat = () => {
-  
+  // États existants
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalConversations, setTotalConversations] = useState(0);
- 
-  
-
   const [conversations, setConversations] = useState<Conversation[]>([]);
-const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
-const [error, setError] = useState<string | null>(null);
-const [, setSelectedConversation] = useState<Conversation | null>(null);
-const [, setMessages] = useState<any[]>([]);
+  const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch conversations from API
+  // NOUVEAUX ÉTATS
+  const [accounts, setAccounts] = useState<CreatedAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<CreatedAccount | null>(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatReceiver, setChatReceiver] = useState<{ id: number; name: string } | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
+  const previousScrollHeight = useRef<number>(0);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage(prev => prev + emojiData.emoji);
+  };
+
+  // Charger les comptes créés par l'admin
+  const fetchAccounts = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/created-accounts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setAccounts(data.users || []);
+    } catch (err) {
+      console.error('Erreur chargement comptes:', err);
+    }
+  };
+
+  // Fetch conversations (original)
   const fetchConversations = async (page: number = 1): Promise<void> => {
     setIsLoading(true);
     setError(null);
-
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`${API_URL}/admin/conversations?page=${page}&per_page=20`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        }
+      let url = `${API_URL}/admin/conversations?page=${page}&per_page=20`;
+      // 🔥 Filtrer par compte sélectionné
+      if (selectedAccount) {
+        url += `&user_id=${selectedAccount.id}`;
+      }
+
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
 
-      if (!response.ok) {
-        throw new Error('Erreur lors du chargement des conversations');
-      }
+      if (!response.ok) throw new Error('Erreur lors du chargement des conversations');
 
       const data = await response.json();
 
-      const mappedConversations: Conversation[] = data.data.map((conv: any) => ({
+      const mappedConversations: Conversation[] = (data.data || []).map((conv: any) => ({
         id: conv.id,
-        user_one: {
-          id: conv.user_one_id,
-          name: conv.user_one_name,
-          email: conv.user_one_email
-        },
-        user_two: {
-          id: conv.user_two_id,
-          name: conv.user_two_name,
-          email: conv.user_two_email
-        },
+        user_one_id: conv.user_one_id,
+        user_two_id: conv.user_two_id,
+        user_one_name: conv.user_one_name,
+        user_two_name: conv.user_two_name,
+        user_one_email: conv.user_one_email,
+        user_two_email: conv.user_two_email,
         last_message_at: conv.last_message_at,
-        created_at: conv.created_at
+        last_message: conv.last_message,
+        created_at: conv.created_at || conv.last_message_at || new Date().toISOString(),
       }));
 
       setConversations(mappedConversations);
@@ -77,104 +122,159 @@ const [, setMessages] = useState<any[]>([]);
       setTotalPages(data.last_page || 1);
       setTotalConversations(data.total || 0);
       setCurrentPage(data.current_page || 1);
-
     } catch (err: unknown) {
-      console.error('Error fetching conversations:', err);
-    
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Une erreur inconnue");
-      }
+      setError(err instanceof Error ? err.message : "Une erreur inconnue");
     } finally {
       setIsLoading(false);
     }
   };
-  const fetchMessages = async (userId: number): Promise<void> => {
-    const token = localStorage.getItem('adminToken');
-  
-    const res = await fetch(`${API_URL}/messages/${userId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-  
-    const data = await res.json();
-    setMessages(data);
+
+  const fetchMessages = async (contactId: number, page: number = 1) => {
+    if (page === 1) setIsLoadingMessages(true);
+    else setLoadingMoreMessages(true);
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/messages/${contactId}?admin_user_id=${selectedAccount?.id}&page=${page}&per_page=20`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const msgs = (data.messages || []).map((m: any) => ({
+        ...m,
+        is_mine: m.sender_id === selectedAccount?.id
+      }));
+
+      if (page === 1) {
+        setMessages(msgs.reverse());
+        setMessagesPage(1);
+        setHasMoreMessages(data.has_more || msgs.length >= 20);
+      } else {
+        const container = document.querySelector('.chat-messages-container');
+        if (container) previousScrollHeight.current = container.scrollHeight;
+        setMessages(prev => [...msgs.reverse(), ...prev]);
+        setMessagesPage(page);
+        setHasMoreMessages(data.has_more || msgs.length >= 20);
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - previousScrollHeight.current;
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Erreur chargement messages:', err);
+    } finally {
+      setIsLoadingMessages(false);
+      setLoadingMoreMessages(false);
+    }
   };
 
-  // Initial fetch
+  // Envoyer un message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedAccount || !chatReceiver || isSending) return;
+    setIsSending(true);
+    const tempContent = newMessage;
+    setNewMessage('');
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/send-message-as`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sender_id: selectedAccount.id,
+          receiver_id: chatReceiver.id,
+          content: tempContent
+        })
+      });
+      const data = await res.json();
+      if (data.message) {
+        setMessages(prev => [...prev, {
+          id: data.message.id,
+          content: data.message.content,
+          sender_id: selectedAccount.id,
+          is_mine: true,
+          created_at: data.message.created_at
+        }]);
+      }
+    } catch (err) {
+      console.error('Erreur envoi message:', err);
+      setNewMessage(tempContent);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // 🔥 Ouvrir le chat avec un utilisateur
+  const openChat = (conv: Conversation) => {
+    const receiverId = selectedAccount?.id === conv.user_one_id ? conv.user_two_id : conv.user_one_id;
+    const receiverName = selectedAccount?.id === conv.user_one_id ? conv.user_two_name : conv.user_one_name;
+    setChatReceiver({ id: receiverId, name: receiverName });
+    fetchMessages(receiverId);
+    setShowChatModal(true);
+  };
+
+  // Initialisation
   useEffect(() => {
+    fetchAccounts();
     fetchConversations(1);
   }, []);
 
-  // Filter conversations locally
+  // Recharger quand le compte change
+  useEffect(() => {
+    if (selectedAccount) {
+      fetchConversations(1);
+    }
+  }, [selectedAccount]);
+
+  // Scroll en bas
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Filtre local
   useEffect(() => {
     if (!searchTerm) {
       setFilteredConversations(conversations);
       return;
     }
-
     const filtered = conversations.filter(conv =>
-      conv.user_one.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.user_one.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.user_two.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.user_two.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      conv.user_one_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      conv.user_one_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      conv.user_two_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      conv.user_two_email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
     setFilteredConversations(filtered);
   }, [searchTerm, conversations]);
 
-  // Format date
   const formatDate = (dateStr: string | null): string => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateStr || dateStr === 'N/A') return 'N/A';
+    const date = new Date(dateStr + 'Z');
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  // Format relative time
   const formatRelativeTime = (dateStr: string | null): string => {
     if (!dateStr) return 'Jamais';
-    const date = new Date(dateStr);
+    const date = new Date(dateStr + 'Z');
+    if (isNaN(date.getTime())) return 'N/A';
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'À l\'instant';
+    const diffMins = Math.floor((now.getTime() - date.getTime()) / 60000);
+    if (diffMins < 1) return "À l'instant";
     if (diffMins < 60) return `Il y a ${diffMins} min`;
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `Il y a ${diffHours}h`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `Il y a ${diffDays}j`;
-    return formatDate(dateStr);
+    return new Date(dateStr + 'Z').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
-    const headers = ['ID', 'Utilisateur 1', 'Email 1', 'Utilisateur 2', 'Email 2', 'Dernier message', 'Créé le'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredConversations.map(conv => [
-        conv.id,
-        `"${conv.user_one.name || 'N/A'}"`,
-        conv.user_one.email,
-        `"${conv.user_two.name || 'N/A'}"`,
-        conv.user_two.email,
-        conv.last_message_at || 'N/A',
-        conv.created_at
-      ].join(','))
-    ].join('\n');
+  const formatTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `conversations_tafa_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+  const getDisplayName = (account: CreatedAccount) => {
+    return [account.firstname, account.name].filter(Boolean).join(' ') || 'Sans nom';
   };
 
   if (isLoading && conversations.length === 0) {
@@ -182,25 +282,7 @@ const [, setMessages] = useState<any[]>([]);
       <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="animate-spin text-sky-600 mx-auto mb-4" size={48} />
-          <p className="text-gray-600 font-medium">Chargement des conversations...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && conversations.length === 0) {
-    return (
-      <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-lg">
-          <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
-          <p className="text-gray-800 font-semibold mb-2">Erreur de chargement</p>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={() => fetchConversations(1)}
-            className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
-          >
-            Réessayer
-          </button>
+          <p className="text-gray-600 font-medium">Chargement...</p>
         </div>
       </div>
     );
@@ -209,108 +291,110 @@ const [, setMessages] = useState<any[]>([]);
   return (
     <div className="p-3 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen overflow-x-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
             <MessageSquare className="text-sky-600" size={32} />
             Conversations
           </h1>
-          <p className="text-gray-600">
-            {totalConversations} conversations au total
-          </p>
+          <p className="text-gray-600">{totalConversations} conversations au total</p>
         </div>
 
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <button
-            onClick={() => fetchConversations(currentPage)}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition"
-          >
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* 🔥 SÉLECTEUR DE COMPTE */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAccountSelector(!showAccountSelector)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 transition shadow-lg"
+            >
+              <Users size={18} />
+              {selectedAccount ? getDisplayName(selectedAccount) : 'Choisir un compte'}
+            </button>
+
+            {showAccountSelector && (
+              <div className="absolute top-full mt-2 right-0 w-72 bg-white rounded-2xl shadow-2xl border z-50 max-h-80 overflow-y-auto">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-semibold text-gray-700">Comptes créés par l'admin</p>
+                </div>
+                {selectedAccount && (
+                  <button
+                    onClick={() => {
+                      setSelectedAccount(null);
+                      setShowAccountSelector(false);
+                    }}
+                    className="w-full text-left p-3 hover:bg-gray-50 transition text-red-500 text-sm border-b"
+                  >
+                    ✕ Afficher toutes les conversations
+                  </button>
+                )}
+                {accounts.map(account => (
+                  <button
+                    key={account.id}
+                    onClick={() => {
+                      setSelectedAccount(account);
+                      setShowAccountSelector(false);
+                    }}
+                    className={`w-full text-left p-3 hover:bg-gray-50 transition flex items-center gap-2 ${selectedAccount?.id === account.id ? 'bg-emerald-50' : ''}`}
+                  >
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
+                      {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium">{getDisplayName(account)}</div>
+                      <div className="text-xs text-gray-500">{account.email}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => fetchConversations(currentPage)} disabled={isLoading} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition">
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
             Actualiser
-          </button>
-          <button
-            onClick={exportToCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-xl hover:from-emerald-700 hover:to-emerald-600 transition"
-          >
-            <Download size={18} />
-            Exporter
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow border border-gray-200 p-5">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Conversations</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{totalConversations}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-sky-100 text-sky-600">
-              <MessageSquare size={24} />
-            </div>
+            <div><p className="text-sm text-gray-600">Total Conversations</p><p className="text-2xl font-bold text-gray-800 mt-1">{totalConversations}</p></div>
+            <div className="p-3 rounded-xl bg-sky-100 text-sky-600"><MessageSquare size={24} /></div>
           </div>
         </div>
-
         <div className="bg-white rounded-2xl shadow border border-gray-200 p-5">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Utilisateurs impliqués</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {new Set([
-                  ...conversations.map(c => c.user_one.id),
-                  ...conversations.map(c => c.user_two.id)
-                ]).size}
-              </p>
-            </div>
-            <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600">
-              <Users size={24} />
-            </div>
+            <div><p className="text-sm text-gray-600">Utilisateurs impliqués</p><p className="text-2xl font-bold text-gray-800 mt-1">{new Set([...conversations.map(c => c.user_one_id), ...conversations.map(c => c.user_two_id)]).size}</p></div>
+            <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600"><Users size={24} /></div>
           </div>
         </div>
-
         <div className="bg-white rounded-2xl shadow border border-gray-200 p-5">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Actives aujourd'hui</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {conversations.filter(c => {
-                  if (!c.last_message_at) return false;
-                  const date = new Date(c.last_message_at);
-                  const today = new Date();
-                  return date.toDateString() === today.toDateString();
-                }).length}
-              </p>
-            </div>
-            <div className="p-3 rounded-xl bg-amber-100 text-amber-600">
-              <Clock size={24} />
-            </div>
+            <div><p className="text-sm text-gray-600">Actives aujourd'hui</p><p className="text-2xl font-bold text-gray-800 mt-1">{conversations.filter(c => c.last_message_at && new Date(c.last_message_at).toDateString() === new Date().toDateString()).length}</p></div>
+            <div className="p-3 rounded-xl bg-amber-100 text-amber-600"><Clock size={24} /></div>
           </div>
         </div>
       </div>
 
       {/* Search */}
       <div className="bg-white rounded-2xl shadow border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row gap-4 items-center">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Rechercher par nom ou email..."
-              value={searchTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchTerm(e.target.value)
-              }
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Rechercher par nom ou email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
         </div>
       </div>
 
-      {/* Conversations Table */}
+      {/* Tableau des conversations */}
       <div className="bg-white rounded-2xl shadow border border-gray-200 overflow-hidden">
-        <div className="min-w-[500px] sm:min-w-0 overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -319,74 +403,64 @@ const [, setMessages] = useState<any[]>([]);
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Utilisateur 2</th>
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Dernier message</th>
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Créé le</th>
+                {selectedAccount && <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Action</th>}
               </tr>
             </thead>
             <tbody>
               {filteredConversations.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-gray-500">
-                    Aucune conversation trouvée
-                  </td>
-                </tr>
+                <tr><td colSpan={selectedAccount ? 6 : 5} className="py-12 text-center text-gray-500">Aucune conversation trouvée</td></tr>
               ) : (
                 filteredConversations.map((conv) => (
-                  <tr
-                    key={conv.id}
-                    onClick={() => {
-                      setSelectedConversation(conv);
-
-                      const otherUserId = conv.user_two.id;
-                      fetchMessages(otherUserId);
-                    }}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer"
-                  >
-                    <td className="py-4 px-6">
-                      <span className="font-mono text-sm text-gray-600">#{conv.id}</span>
-                    </td>
+                  <tr key={conv.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td className="py-4 px-6"><span className="font-mono text-sm text-gray-600">#{conv.id}</span></td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 flex items-center justify-center text-white font-bold">
-                          {(conv.user_one.name || 'U').charAt(0).toUpperCase()}
+                          {(conv.user_one_name || 'U').charAt(0).toUpperCase()}
                         </div>
+
                         <div>
-                          <div className="font-medium text-gray-800">{conv.user_one.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                            <Mail size={10} />
-                            {conv.user_one.email}
-                          </div>
+                          <div className="font-medium text-gray-800">{conv.user_one_name || 'N/A'}</div>
+                          <div className="text-xs text-gray-400 truncate max-w-[150px]">{conv.last_message || 'Nouveau'}</div>
                         </div>
+
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-r from-rose-500 to-pink-400 flex items-center justify-center text-white font-bold">
-                          {(conv.user_two.name || 'U').charAt(0).toUpperCase()}
+                          {(conv.user_two_name || 'U').charAt(0).toUpperCase()}
                         </div>
+
                         <div>
-                          <div className="font-medium text-gray-800">{conv.user_two.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                            <Mail size={10} />
-                            {conv.user_two.email}
-                          </div>
+                          <div className="font-medium text-gray-800">{conv.user_two_name || 'N/A'}</div>
+                          <div className="text-xs text-gray-400 truncate max-w-[150px]">{conv.last_message || 'Nouveau'}</div>
                         </div>
+
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
                         <Clock size={14} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {formatRelativeTime(conv.last_message_at)}
-                        </span>
+                        <span className="text-sm text-gray-600">{formatRelativeTime(conv.last_message_at)}</span>
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {formatDate(conv.created_at)}
-                        </span>
+                        <span className="text-sm text-gray-600">{formatDate(conv.created_at)}</span>
                       </div>
                     </td>
+                    {selectedAccount && (
+                      <td className="py-4 px-6">
+                        <button
+                          onClick={() => openChat(conv)}
+                          className="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm hover:bg-sky-600 transition"
+                        >
+                          Discuter
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -396,27 +470,112 @@ const [, setMessages] = useState<any[]>([]);
 
         {/* Pagination */}
         <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-sm text-gray-600">
-            Page {currentPage} sur {totalPages} ({totalConversations} conversations)
-          </div>
+          <div className="text-sm text-gray-600">Page {currentPage} sur {totalPages} ({totalConversations} conversations)</div>
           <div className="flex gap-2">
-            <button
-              onClick={() => fetchConversations(currentPage - 1)}
-              disabled={currentPage === 1 || isLoading}
-              className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Précédent
-            </button>
-            <button
-              onClick={() => fetchConversations(currentPage + 1)}
-              disabled={currentPage === totalPages || isLoading}
-              className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Suivant
-            </button>
+            <button onClick={() => fetchConversations(currentPage - 1)} disabled={currentPage === 1 || isLoading} className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50">Précédent</button>
+            <button onClick={() => fetchConversations(currentPage + 1)} disabled={currentPage === totalPages || isLoading} className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50">Suivant</button>
           </div>
         </div>
       </div>
+
+      {/* 🔥 MODALE DE CHAT */}
+      {showChatModal && chatReceiver && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-sky-600 to-cyan-500 text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold text-lg">
+                  {chatReceiver.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-semibold">{chatReceiver.name}</div>
+                  <div className="text-xs text-sky-100">En tant que : {getDisplayName(selectedAccount!)}</div>
+                </div>
+              </div>
+              <button onClick={() => setShowChatModal(false)} className="text-white/80 hover:text-white transition">
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 chat-messages-container" style={{ backgroundColor: '#f3f4f6' }}>
+              {loadingMoreMessages && (
+                <div className="flex justify-center py-2">
+                  <RefreshCw className="animate-spin text-gray-400" size={20} />
+                </div>
+              )}
+
+              {hasMoreMessages && !loadingMoreMessages && messages.length > 0 && (
+                <div className="flex justify-center py-2">
+                  <button
+                    onClick={() => fetchMessages(chatReceiver.id, messagesPage + 1)}
+                    className="px-4 py-1.5 text-xs font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-full transition"
+                  >
+                    ↑ Voir plus
+                  </button>
+                </div>
+              )}
+
+              {isLoadingMessages ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="animate-spin mx-auto text-gray-400" size={24} />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  Aucun message. Commencez la conversation !
+                </div>
+              ) : (
+                messages.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${msg.is_mine ? 'bg-sky-500 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                      <span className={`text-[10px] block text-right mt-1 ${msg.is_mine ? 'text-sky-100' : 'text-gray-400'}`}>
+                        {formatTime(msg.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-3 bg-white border-t border-gray-200 shrink-0">
+              <div className="relative flex items-center gap-2">
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition shrink-0"
+                >
+                  <FaSmile size={20} />
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute bottom-full left-0 mb-2 z-50">
+                    <EmojiPicker onEmojiClick={onEmojiClick} theme={"light" as any} />
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Écrivez votre message..."
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full border-none text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                  style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}
+                  disabled={isSending}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending || !newMessage.trim()}
+                  className="p-2.5 bg-sky-500 text-white rounded-full hover:bg-sky-600 transition disabled:opacity-50 shadow-lg shrink-0"
+                >
+                  <FaPaperPlane size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
