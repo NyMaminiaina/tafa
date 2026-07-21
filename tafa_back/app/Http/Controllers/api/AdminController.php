@@ -286,6 +286,9 @@ class AdminController extends Controller
         $perPage = $request->get('per_page', 20);
         $userId = $request->get('user_id');
 
+        // Récupérer les IDs des comptes créés par l'admin
+        $adminCreatedIds = User::where('created_by_admin', 1)->pluck('id')->toArray();
+
         $query = DB::table('echanges as e')
             ->join('users as u1', 'e.sender', '=', 'u1.id')
             ->join('users as u2', 'e.receiver', '=', 'u2.id')
@@ -299,7 +302,12 @@ class AdminController extends Controller
                 'u2.email as user_two_email',
                 'e.latestmessage as last_message',
                 'e.latestdate as last_message_at'
-            );
+            )
+            // Filtrer : au moins un des deux doit être un compte créé par l'admin
+            ->where(function ($q) use ($adminCreatedIds) {
+                $q->whereIn('e.sender', $adminCreatedIds)
+                    ->orWhereIn('e.receiver', $adminCreatedIds);
+            });
 
         if ($userId) {
             $query->where(function ($q) use ($userId) {
@@ -312,7 +320,6 @@ class AdminController extends Controller
 
         return response()->json($conversations);
     }
-
 
     // Récupère tous les utilisateurs Premiem
     public function getSubscriptions()

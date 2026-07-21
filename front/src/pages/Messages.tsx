@@ -503,12 +503,23 @@ const Messages: React.FC = () => {
   }, []);
 
   // Rafraîchissement intelligent des messages (uniquement si conversation active)
+  // -> le prof demande : max 5 tentatives espacées de 3s, puis STOP (pas de boucle infinie).
+  //    Un nouveau cycle de 5x3s ne redémarre que si :
+  //      - on change de conversation (clic sur un autre utilisateur, ex: "Marco")
+  //      - on revient sur l'onglet navigateur (visibilitychange)
+  //      - on recharge la page (le composant est remonté de zéro)
   useEffect(() => {
     if (!activeConversation) return;
 
+    const MAX_ATTEMPTS = 5;
+    const POLL_DELAY = 3000; // 3 secondes
+
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let attempts = 0;
 
     const pollMessages = async () => {
+      attempts += 1;
+
       try {
         const data = await getMessages(activeConversation.id, 1);
         const newMessages = data.messages || [];
@@ -532,12 +543,19 @@ const Messages: React.FC = () => {
         setLastActivity(data.last_seen || null);
       } catch (error) {
         console.error("Erreur refresh messages:", error);
+      } finally {
+        // 5 tentatives faites (trouvé ou pas) -> on arrête, plus de gaspillage de requêtes
+        if (attempts >= MAX_ATTEMPTS && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
       }
     };
 
     const startPolling = () => {
-      if (intervalId) return;
-      intervalId = setInterval(pollMessages, 5000);
+      if (intervalId) return; // déjà en cours, on ne relance pas par-dessus
+      attempts = 0; // nouveau cycle -> compteur remis à 0
+      intervalId = setInterval(pollMessages, POLL_DELAY);
     };
 
     const stopPolling = () => {
@@ -553,7 +571,7 @@ const Messages: React.FC = () => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        pollMessages();
+        // on revient sur l'onglet -> nouveau cycle de 5x3s
         startPolling();
       } else {
         stopPolling();

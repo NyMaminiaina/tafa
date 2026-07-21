@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Search, MessageSquare, RefreshCw,
   Clock, Calendar, Users, X
@@ -134,6 +134,25 @@ const Chat = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const shouldShowSeparator = (current: Message, previous?: Message) => {
+    if (!previous) return true;
+    return new Date(current.created_at).toDateString() !== new Date(previous.created_at).toDateString();
+  };
+
+  const formatSeparatorDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) return "Aujourd'hui";
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return "Hier";
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 7) {
+      return date.toLocaleDateString("fr-FR", { weekday: "long" });
+    }
+    return date.toLocaleDateString("fr-FR");
   };
 
   // Envoyer un message
@@ -590,15 +609,24 @@ const Chat = () => {
                   Aucun message. Commencez la conversation !
                 </div>
               ) : (
-                messages.map(msg => (
-                  <div key={msg.id} className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${msg.is_mine ? 'bg-sky-500 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
-                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                      <span className={`text-[10px] block text-right mt-1 ${msg.is_mine ? 'text-sky-100' : 'text-gray-400'}`}>
-                        {formatTime(msg.created_at)}
-                      </span>
+                messages.map((msg, index, arr) => (
+                  <React.Fragment key={msg.id}>
+                    {shouldShowSeparator(msg, arr[index - 1]) && (
+                      <div className="flex justify-center my-3">
+                        <span className="text-[11px] text-gray-400 bg-gray-200/50 px-3 py-0.5 rounded-full font-medium">
+                          {formatSeparatorDate(msg.created_at)}
+                        </span>
+                      </div>
+                    )}
+                    <div className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${msg.is_mine ? 'bg-sky-500 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
+                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <span className={`text-[10px] block text-right mt-1 ${msg.is_mine ? 'text-sky-100' : 'text-gray-400'}`}>
+                          {formatTime(msg.created_at)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </React.Fragment>
                 ))
               )}
               <div ref={messagesEndRef} />
