@@ -400,7 +400,6 @@ const Utilisateurs = () => {
       } else {
         result = result.filter(user => user.status === selectedStatus);
       }
-
     }
 
     // Sort

@@ -70,7 +70,6 @@ const Chat = () => {
   const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
-  const [selectedFakeAccount, setSelectedFakeAccount] = useState<CreatedAccount | null>(null);
   const [selectedRealUser, setSelectedRealUser] = useState<any | null>(null);
   const [firstMessage, setFirstMessage] = useState('👋 Bonjour !');
 
@@ -214,12 +213,62 @@ const Chat = () => {
     }
   };
 
-  // 🔥 Ouvrir le chat avec un utilisateur
+  const fetchMessagesForAccount = async (fakeAccountId: number, contactId: number, page: number = 1) => {
+    if (page === 1) setIsLoadingMessages(true);
+    else setLoadingMoreMessages(true);
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/messages/${contactId}?admin_user_id=${fakeAccountId}&page=${page}&per_page=20`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const msgs = (data.messages || []).map((m: any) => ({
+        ...m,
+        is_mine: m.sender_id === fakeAccountId
+      }));
+
+      if (page === 1) {
+        setMessages(msgs.reverse());
+        setMessagesPage(1);
+        setHasMoreMessages(data.has_more || msgs.length >= 20);
+      } else {
+        const container = document.querySelector('.chat-messages-container');
+        if (container) previousScrollHeight.current = container.scrollHeight;
+        setMessages(prev => [...msgs.reverse(), ...prev]);
+        setMessagesPage(page);
+        setHasMoreMessages(data.has_more || msgs.length >= 20);
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - previousScrollHeight.current;
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Erreur chargement messages:', err);
+    } finally {
+      setIsLoadingMessages(false);
+      setLoadingMoreMessages(false);
+    }
+  };
+
+  // Ouvrir le chat avec un utilisateur
   const openChat = (conv: Conversation) => {
-    const receiverId = selectedAccount?.id === conv.user_one_id ? conv.user_two_id : conv.user_one_id;
-    const receiverName = selectedAccount?.id === conv.user_one_id ? conv.user_two_name : conv.user_one_name;
-    setChatReceiver({ id: receiverId, name: receiverName });
-    fetchMessages(receiverId);
+    // Déterminer qui est le compte fake et qui est le réel
+    // On cherche si user_one ou user_two est un compte créé par l'admin
+    const userOneIsFake = accounts.some(a => a.id === conv.user_one_id);
+
+    if (userOneIsFake) {
+      const fakeAccount = accounts.find(a => a.id === conv.user_one_id) || null;
+      setSelectedAccount(fakeAccount);
+      setChatReceiver({ id: conv.user_two_id, name: conv.user_two_name });
+      fetchMessagesForAccount(conv.user_one_id, conv.user_two_id);
+    } else {
+      const fakeAccount = accounts.find(a => a.id === conv.user_two_id) || null;
+      setSelectedAccount(fakeAccount);
+      setChatReceiver({ id: conv.user_one_id, name: conv.user_one_name });
+      fetchMessagesForAccount(conv.user_two_id, conv.user_one_id);
+    }
     setShowChatModal(true);
   };
 
@@ -231,9 +280,7 @@ const Chat = () => {
 
   // Recharger quand le compte change
   useEffect(() => {
-    if (selectedAccount) {
-      fetchConversations(1);
-    }
+    fetchConversations(1);
   }, [selectedAccount]);
 
   // Scroll en bas
@@ -335,7 +382,7 @@ const Chat = () => {
       setSelectedAccount(fakeAccount);
       setChatReceiver({ id: realUser.id, name: realUser.name || realUser.email });
       setShowNewChatModal(false);
-      fetchMessages(realUser.id);
+      fetchMessagesForAccount(fakeAccount.id, realUser.id);
       setShowChatModal(true);
       fetchConversations(1);
     } catch (err) {
@@ -357,28 +404,65 @@ const Chat = () => {
 
         <div className="flex flex-wrap gap-2 items-center">
           {/* SÉLECTEUR DE COMPTE */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAccountSelector(!showAccountSelector)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 transition shadow-lg"
+            >
+              <Users size={18} />
+              {selectedAccount ? getDisplayName(selectedAccount) : 'Tous les comptes'}
+            </button>
+
+            {showAccountSelector && (
+              <div className="absolute top-full mt-2 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 max-h-80 overflow-y-auto">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-semibold text-gray-700">Comptes créés par l'admin</p>
+                </div>
+                {selectedAccount && (
+                  <button
+                    onClick={() => {
+                      setSelectedAccount(null);
+                      setShowAccountSelector(false);
+                      fetchConversations(1);
+                    }}
+                    className="w-full text-left p-3 hover:bg-gray-50 transition text-blue-500 text-sm border-b border-gray-200 font-medium"
+                  >
+                    Afficher toutes les conversations
+                  </button>
+                )}
+                {accounts.map(account => (
+                  <button
+                    key={account.id}
+                    onClick={() => { setSelectedAccount(account); setShowAccountSelector(false); }}
+                    className={`w-full text-left p-3 hover:bg-gray-50 transition flex items-center gap-2 ${selectedAccount?.id === account.id ? 'bg-emerald-50' : ''}`}
+                  >
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
+                      {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium">{getDisplayName(account)}</div>
+                      <div className="text-xs text-gray-500">{account.email}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* BOUTON NOUVELLE DISCUSSION */}
           <button
-            onClick={() => setShowNewChatModal(true)}
+            onClick={() => {
+              setSelectedRealUser(null);
+              setUserSearchTerm('');
+              setUserSearchResults([]);
+              setFirstMessage('👋 Bonjour !');
+              setShowNewChatModal(true);
+            }}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl hover:from-sky-700 transition shadow-lg"
           >
             <MessageSquare size={18} />
             Nouvelle discussion
           </button>
-
-          <button onClick={() => fetchConversations(currentPage)} disabled={isLoading} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition">
-            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
-            Actualiser
-          </button>
-
-          {selectedAccount && (
-            <button
-              onClick={() => setShowNewChatModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl hover:from-sky-700 transition shadow-lg"
-            >
-              <MessageSquare size={18} />
-              Nouvelle discussion
-            </button>
-          )}
 
         </div>
       </div>
@@ -430,12 +514,12 @@ const Chat = () => {
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Utilisateur 2</th>
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Dernier message</th>
                 <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Créé le</th>
-                {selectedAccount && <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Action</th>}
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredConversations.length === 0 ? (
-                <tr><td colSpan={selectedAccount ? 6 : 5} className="py-12 text-center text-gray-500">Aucune conversation trouvée</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-gray-500">Aucune conversation trouvée</td></tr>
               ) : (
                 filteredConversations.map((conv) => (
                   <tr key={conv.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
@@ -478,16 +562,14 @@ const Chat = () => {
                         <span className="text-sm text-gray-600">{formatDate(conv.created_at)}</span>
                       </div>
                     </td>
-                    {selectedAccount && (
-                      <td className="py-4 px-6">
-                        <button
-                          onClick={() => openChat(conv)}
-                          className="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm hover:bg-sky-600 transition"
-                        >
-                          Discuter
-                        </button>
-                      </td>
-                    )}
+                    <td className="py-4 px-6">
+                      <button
+                        onClick={() => openChat(conv)}
+                        className="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm hover:bg-sky-600 transition"
+                      >
+                        Discuter
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -536,7 +618,7 @@ const Chat = () => {
               {hasMoreMessages && !loadingMoreMessages && messages.length > 0 && (
                 <div className="flex justify-center py-2">
                   <button
-                    onClick={() => fetchMessages(chatReceiver.id, messagesPage + 1)}
+                    onClick={() => fetchMessagesForAccount(selectedAccount?.id || 0, chatReceiver.id, messagesPage + 1)}
                     className="px-4 py-1.5 text-xs font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-full transition"
                   >
                     ↑ Voir plus
@@ -612,7 +694,7 @@ const Chat = () => {
               <h3 className="font-bold">Nouvelle discussion</h3>
               <button onClick={() => {
                 setShowNewChatModal(false);
-                setSelectedFakeAccount(null);
+                setSelectedAccount(null);
                 setSelectedRealUser(null);
                 setUserSearchTerm('');
                 setUserSearchResults([]);
@@ -624,15 +706,15 @@ const Chat = () => {
             <div className="p-4 overflow-y-auto flex-1">
               {/* Étape 1 : Choisir le compte fake */}
               <p className="text-sm font-semibold text-gray-700 mb-2">1. Choisir le compte fake</p>
-              {selectedFakeAccount ? (
+              {selectedAccount ? (
                 <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl mb-4">
                   <div className="flex items-center gap-2">
                     <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
-                      {getDisplayName(selectedFakeAccount).charAt(0)}
+                      {getDisplayName(selectedAccount).charAt(0)}
                     </span>
-                    <span className="font-medium text-sm">{getDisplayName(selectedFakeAccount)}</span>
+                    <span className="font-medium text-sm">{getDisplayName(selectedAccount)}</span>
                   </div>
-                  <button onClick={() => setSelectedFakeAccount(null)} className="text-red-400 hover:text-red-600">
+                  <button onClick={() => setSelectedAccount(null)} className="text-red-400 hover:text-red-600">
                     <X size={16} />
                   </button>
                 </div>
@@ -641,7 +723,7 @@ const Chat = () => {
                   {accounts.map(account => (
                     <button
                       key={account.id}
-                      onClick={() => setSelectedFakeAccount(account)}
+                      onClick={() => setSelectedAccount(account)}
                       className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
                     >
                       <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
@@ -701,7 +783,15 @@ const Chat = () => {
                       <p className="text-center text-gray-500 py-4 text-sm">Aucun utilisateur trouvé</p>
                     ) : (
                       userSearchResults
-                        .filter((u: any) => u.id !== selectedFakeAccount?.id)
+                        .filter((u: any) => {
+                          // Exclure le compte fake sélectionné
+                          if (u.id === selectedAccount?.id) return false;
+                          // Exclure les comptes créés par l'admin
+                          if (accounts.some(a => a.id === u.id)) return false;
+                          // Exclure les admins
+                          if (u.is_admin || u.isAdmin) return false;
+                          return true;
+                        })
                         .map((user: any) => (
                           <button
                             key={user.id}
@@ -736,19 +826,19 @@ const Chat = () => {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
               />
             </div>
-            <div className="p-4 bg-gray-50 shrink-0 rounded-b-2xl">
+            <div className="p-4 shrink-0 rounded-b-2xl">
               <button
                 onClick={async () => {
-                  if (!selectedFakeAccount || !selectedRealUser || !firstMessage.trim()) return;
-                  await startNewConversation(selectedFakeAccount, selectedRealUser, firstMessage);
+                  if (!selectedAccount || !selectedRealUser || !firstMessage.trim()) return;
+                  await startNewConversation(selectedAccount, selectedRealUser, firstMessage);
                   setShowNewChatModal(false);
-                  setSelectedFakeAccount(null);
+                  setSelectedAccount(null);
                   setSelectedRealUser(null);
                   setUserSearchTerm('');
                   setUserSearchResults([]);
                   setFirstMessage('👋 Bonjour !');
                 }}
-                disabled={!selectedFakeAccount || !selectedRealUser || !firstMessage.trim()}
+                disabled={!selectedAccount || !selectedRealUser || !firstMessage.trim()}
                 className="w-full py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition disabled:opacity-50 font-semibold"
               >
                 Démarrer la discussion
