@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Search, MessageSquare, Download, RefreshCw,
-  Clock, Calendar, Mail, Users, X
+  Search, MessageSquare, RefreshCw,
+  Clock, Calendar, Users, X
 } from 'lucide-react';
 import { FaPaperPlane, FaSmile } from 'react-icons/fa';
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
@@ -46,7 +46,6 @@ const Chat = () => {
   const [totalConversations, setTotalConversations] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   // NOUVEAUX ÉTATS
   const [accounts, setAccounts] = useState<CreatedAccount[]>([]);
@@ -65,6 +64,15 @@ const Chat = () => {
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
   const previousScrollHeight = useRef<number>(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+
+  const [selectedFakeAccount, setSelectedFakeAccount] = useState<CreatedAccount | null>(null);
+  const [selectedRealUser, setSelectedRealUser] = useState<any | null>(null);
+  const [firstMessage, setFirstMessage] = useState('👋 Bonjour !');
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setNewMessage(prev => prev + emojiData.emoji);
@@ -87,7 +95,6 @@ const Chat = () => {
   // Fetch conversations (original)
   const fetchConversations = async (page: number = 1): Promise<void> => {
     setIsLoading(true);
-    setError(null);
     try {
       const token = localStorage.getItem('adminToken');
       let url = `${API_URL}/admin/conversations?page=${page}&per_page=20`;
@@ -123,7 +130,7 @@ const Chat = () => {
       setTotalConversations(data.total || 0);
       setCurrentPage(data.current_page || 1);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Une erreur inconnue");
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -288,6 +295,54 @@ const Chat = () => {
     );
   }
 
+  const searchUsers = async (search: string) => {
+    if (!search || search.length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+    setIsSearchingUsers(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/users?search=${encodeURIComponent(search)}&per_page=10`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setUserSearchResults(data.data || []);
+    } catch (err) {
+      console.error('Erreur recherche utilisateurs:', err);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
+
+  const startNewConversation = async (fakeAccount: CreatedAccount, realUser: any, message: string) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      await fetch(`${API_URL}/admin/send-message-as`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sender_id: fakeAccount.id,
+          receiver_id: realUser.id,
+          content: message
+        })
+      });
+
+      // Sélectionner le compte fake et ouvrir le chat
+      setSelectedAccount(fakeAccount);
+      setChatReceiver({ id: realUser.id, name: realUser.name || realUser.email });
+      setShowNewChatModal(false);
+      fetchMessages(realUser.id);
+      setShowChatModal(true);
+      fetchConversations(1);
+    } catch (err) {
+      console.error('Erreur création conversation:', err);
+    }
+  };
+
   return (
     <div className="p-3 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen overflow-x-auto">
       {/* Header */}
@@ -301,58 +356,30 @@ const Chat = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          {/* 🔥 SÉLECTEUR DE COMPTE */}
-          <div className="relative">
-            <button
-              onClick={() => setShowAccountSelector(!showAccountSelector)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 transition shadow-lg"
-            >
-              <Users size={18} />
-              {selectedAccount ? getDisplayName(selectedAccount) : 'Choisir un compte'}
-            </button>
-
-            {showAccountSelector && (
-              <div className="absolute top-full mt-2 right-0 w-72 bg-white rounded-2xl shadow-2xl border z-50 max-h-80 overflow-y-auto">
-                <div className="p-3 border-b">
-                  <p className="text-sm font-semibold text-gray-700">Comptes créés par l'admin</p>
-                </div>
-                {selectedAccount && (
-                  <button
-                    onClick={() => {
-                      setSelectedAccount(null);
-                      setShowAccountSelector(false);
-                    }}
-                    className="w-full text-left p-3 hover:bg-gray-50 transition text-red-500 text-sm border-b"
-                  >
-                    ✕ Afficher toutes les conversations
-                  </button>
-                )}
-                {accounts.map(account => (
-                  <button
-                    key={account.id}
-                    onClick={() => {
-                      setSelectedAccount(account);
-                      setShowAccountSelector(false);
-                    }}
-                    className={`w-full text-left p-3 hover:bg-gray-50 transition flex items-center gap-2 ${selectedAccount?.id === account.id ? 'bg-emerald-50' : ''}`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
-                      {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <div className="text-sm font-medium">{getDisplayName(account)}</div>
-                      <div className="text-xs text-gray-500">{account.email}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* SÉLECTEUR DE COMPTE */}
+          <button
+            onClick={() => setShowNewChatModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl hover:from-sky-700 transition shadow-lg"
+          >
+            <MessageSquare size={18} />
+            Nouvelle discussion
+          </button>
 
           <button onClick={() => fetchConversations(currentPage)} disabled={isLoading} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition">
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
             Actualiser
           </button>
+
+          {selectedAccount && (
+            <button
+              onClick={() => setShowNewChatModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl hover:from-sky-700 transition shadow-lg"
+            >
+              <MessageSquare size={18} />
+              Nouvelle discussion
+            </button>
+          )}
+
         </div>
       </div>
 
@@ -572,6 +599,160 @@ const Chat = () => {
                   <FaPaperPlane size={18} />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE NOUVELLE DISCUSSION */}
+      {showNewChatModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-t-2xl shrink-0">
+              <h3 className="font-bold">Nouvelle discussion</h3>
+              <button onClick={() => {
+                setShowNewChatModal(false);
+                setSelectedFakeAccount(null);
+                setSelectedRealUser(null);
+                setUserSearchTerm('');
+                setUserSearchResults([]);
+                setFirstMessage('👋 Bonjour !');
+              }} className="text-white/80 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {/* Étape 1 : Choisir le compte fake */}
+              <p className="text-sm font-semibold text-gray-700 mb-2">1. Choisir le compte fake</p>
+              {selectedFakeAccount ? (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                      {getDisplayName(selectedFakeAccount).charAt(0)}
+                    </span>
+                    <span className="font-medium text-sm">{getDisplayName(selectedFakeAccount)}</span>
+                  </div>
+                  <button onClick={() => setSelectedFakeAccount(null)} className="text-red-400 hover:text-red-600">
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="max-h-40 overflow-y-auto mb-4 space-y-1">
+                  {accounts.map(account => (
+                    <button
+                      key={account.id}
+                      onClick={() => setSelectedFakeAccount(account)}
+                      className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
+                    >
+                      <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
+                        {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
+                      </span>
+                      <div>
+                        <div className="text-sm font-medium">{getDisplayName(account)}</div>
+                        <div className="text-xs text-gray-500">{account.email}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Étape 2 : Choisir le compte réel */}
+              <p className="text-sm font-semibold text-gray-700 mb-2">2. Choisir le compte réel</p>
+              {selectedRealUser ? (
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                      {(selectedRealUser.name || 'U').charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <span className="font-medium text-sm">{selectedRealUser.name || 'Sans nom'}</span>
+                      <span className="text-xs text-gray-500 ml-2">{selectedRealUser.email}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    setSelectedRealUser(null);
+                    setUserSearchTerm('');
+                    setUserSearchResults([]);
+                  }} className="text-red-400 hover:text-red-600">
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Rechercher un utilisateur..."
+                      value={userSearchTerm}
+                      onChange={(e) => {
+                        setUserSearchTerm(e.target.value);
+                        searchUsers(e.target.value);
+                      }}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto mb-4">
+                    {isSearchingUsers ? (
+                      <div className="text-center py-4">
+                        <RefreshCw className="animate-spin mx-auto" size={20} />
+                      </div>
+                    ) : userSearchResults.length === 0 && userSearchTerm.length >= 2 ? (
+                      <p className="text-center text-gray-500 py-4 text-sm">Aucun utilisateur trouvé</p>
+                    ) : (
+                      userSearchResults
+                        .filter((u: any) => u.id !== selectedFakeAccount?.id)
+                        .map((user: any) => (
+                          <button
+                            key={user.id}
+                            onClick={() => {
+                              setSelectedRealUser(user);
+                              setUserSearchTerm('');
+                              setUserSearchResults([]);
+                            }}
+                            className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
+                          >
+                            <span className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 flex items-center justify-center text-white font-bold text-sm">
+                              {(user.name || 'U').charAt(0).toUpperCase()}
+                            </span>
+                            <div>
+                              <div className="text-sm font-medium">{user.name || 'Sans nom'}</div>
+                              <div className="text-xs text-gray-500">{user.email}</div>
+                            </div>
+                          </button>
+                        ))
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Étape 3 : Message */}
+              <p className="text-sm font-semibold text-gray-700 mb-2">3. Premier message</p>
+              <input
+                type="text"
+                value={firstMessage}
+                onChange={(e) => setFirstMessage(e.target.value)}
+                placeholder="Votre premier message..."
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              />
+            </div>
+            <div className="p-4 bg-gray-50 shrink-0 rounded-b-2xl">
+              <button
+                onClick={async () => {
+                  if (!selectedFakeAccount || !selectedRealUser || !firstMessage.trim()) return;
+                  await startNewConversation(selectedFakeAccount, selectedRealUser, firstMessage);
+                  setShowNewChatModal(false);
+                  setSelectedFakeAccount(null);
+                  setSelectedRealUser(null);
+                  setUserSearchTerm('');
+                  setUserSearchResults([]);
+                  setFirstMessage('👋 Bonjour !');
+                }}
+                disabled={!selectedFakeAccount || !selectedRealUser || !firstMessage.trim()}
+                className="w-full py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition disabled:opacity-50 font-semibold"
+              >
+                Démarrer la discussion
+              </button>
             </div>
           </div>
         </div>

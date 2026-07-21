@@ -60,7 +60,7 @@ class ImageController extends Controller
                 // Upload nouvelle image
                 $file = $request->file('image');
                 $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $destinationPath = public_path('profiles_images');
+                $destinationPath = public_path('storage/profiles_images');
 
                 if (!file_exists($destinationPath)) {
                     mkdir($destinationPath, 0755, true);
@@ -70,7 +70,7 @@ class ImageController extends Controller
 
                 // Mettre à jour l'image existante
                 $existingPrimary->update([
-                    'path' => '/profiles_images/' . $filename,
+                    'path' => 'storage/profiles_images/' . $filename,
                 ]);
 
                 return response()->json([
@@ -87,7 +87,7 @@ class ImageController extends Controller
 
         $file = $request->file('image');
         $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
-        $destinationPath = public_path('profiles_images');
+        $destinationPath = public_path('storage/profiles_images');
 
         if (!file_exists($destinationPath)) {
             mkdir($destinationPath, 0755, true);
@@ -102,7 +102,7 @@ class ImageController extends Controller
 
         $image = Image::create([
             'profile_id' => $profile->id,
-            'path' => '/profiles_images/' . $filename,
+            'path' => 'storage/profiles_images/' . $filename,
             'is_primary' => ($isFirst || $makePrimary) ? 1 : 0,
         ]);
 
@@ -215,7 +215,7 @@ class ImageController extends Controller
         $file->move($destinationPath, $filename);
 
         $image->update([
-            'path' => 'storage/profiles_images/' . $filename
+            'path' => 'storage/profiles_images/' . $filename,
         ]);
 
         return response()->json([

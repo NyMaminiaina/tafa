@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, UserPlus, UserCheck, UserX, Mail, Phone, MapPin, Plus,
   Trash2, Shield, AlertCircle,
@@ -391,9 +391,12 @@ const Utilisateurs = () => {
         result = result.filter(user => user.premium);
 
       } else if (selectedStatus === 'admin') {
-        // 🔥 ADMIN
+        // ADMIN
         result = result.filter(user => user.isAdmin);
 
+      } else if (selectedStatus === 'created_by_admin') {
+        result = result.filter(user => user.created_by_admin);
+        // COMPTE CREE PAR ADMIN
       } else {
         result = result.filter(user => user.status === selectedStatus);
       }
@@ -1029,6 +1032,7 @@ const Utilisateurs = () => {
               <option value="all">Tous les statuts</option>
               <option value="active">Admin par pagination</option>
               <option value="premium">Premium par pagination</option>
+              <option value="created_by_admin">Créés par l'admin</option>
             </select>
 
             <button

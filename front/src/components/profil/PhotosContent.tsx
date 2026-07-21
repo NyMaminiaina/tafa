@@ -76,7 +76,6 @@ const PhotosContent: React.FC<PhotosContentProps> = ({ onPrimaryPhotoChanged }) 
   const [photoError, setPhotoError] = useState("");
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperTarget, setCropperTarget] = useState<"add" | "replace" | null>(null);
-  const [cropperReplaceId, setCropperReplaceId] = useState<number | null>(null);
 
   /* ==============================
      1. Charger les photos existantes

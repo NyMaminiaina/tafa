@@ -50,12 +50,6 @@ const AVAILABLE_LANGUAGES = [
 ];
 
 const InfosContent: React.FC<InfosContentProps> = ({ }) => {
-  type City = {
-    id: number;
-    name: string;
-  };
-
-  const [cities, setCities] = useState<City[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -67,8 +61,8 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
     situation_amoureuse: "",
     relationship_type_id: "",
     date_de_naissance: "",
-    interests: [] as number[], // Correction : tableau de nombres pour stocker les IDs
-    langue_ids: [] as number[], // Modifié ici
+    interests: [] as number[], 
+    langue_ids: [] as number[],
   });
 
   useEffect(() => {
@@ -85,19 +79,6 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
         });
 
         const profileData = await profileResponse.json();
-
-        // 🔹 2. Récupérer les villes
-        const citiesResponse = await fetch(`${API_URL}/cities`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        });
-
-        const citiesData = await citiesResponse.json();
-
-        // 👉 on remplit le state cities
-        setCities(citiesData.cities || []);
 
         // 🔹 3. Remplir le formulaire
         if (profileData.profile) {

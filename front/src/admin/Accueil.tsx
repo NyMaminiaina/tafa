@@ -49,7 +49,7 @@ export default function Accueil() {
         setIsSidebarOpen(!isSidebarOpen);
     };
 
-    const handleTabChange = (tab: TabType): void => {
+    const handleTabChange = (_tab: TabType): void => {
         setIsLoading(true);
         setTimeout(() => setIsLoading(false), 300);
     };
