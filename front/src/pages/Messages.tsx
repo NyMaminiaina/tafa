@@ -13,10 +13,6 @@ import { API_URL } from "../utils/api_url";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 
 const BASE_URL = API_URL?.replace("/api", "");
-
-/* =======================
-   INTERFACES (inchangées)
-======================= */
 interface RelatedUser {
   id: number;
   name: string;
@@ -479,7 +475,7 @@ const Messages: React.FC = () => {
 
   const handleViewProfile = () => {
     if (!activeConversation) return;
-    navigate(`/welcome?userId=${activeConversation.other_user.id}`);
+    navigate(`/profil/${activeConversation.other_user.id}`);
   };
 
   const handleDeleteForMe = async (id: number) => {
@@ -575,11 +571,20 @@ const Messages: React.FC = () => {
     setNewMessage(prev => prev + emojiData.emoji);
   };
 
-  const filteredConversations = conversations.filter((conv) =>
-    `${conv.other_user.firstname ?? ""} ${conv.other_user.name}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const filteredConversations = conversations
+    .filter((conv) =>
+      `${conv.other_user.firstname ?? ""} ${conv.other_user.name}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    // Les conversations "système" (ex: Tafa) restent toujours épinglées en haut,
+    // peu importe l'heure du dernier message. .sort() est stable en JS moderne,
+    // donc l'ordre relatif du reste de la liste (par récence) n'est pas modifié.
+    .sort((a, b) => {
+      const aIsSystem = a.other_user.is_system ? 1 : 0;
+      const bIsSystem = b.other_user.is_system ? 1 : 0;
+      return bIsSystem - aIsSystem;
+    });
 
   return (
     <div className="w-screen h-screen overflow-hidden theme-bg-primary">

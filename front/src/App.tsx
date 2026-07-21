@@ -62,6 +62,7 @@ function App() {
         <Route path="/admin/utilisateurs" element={<Accueil />} />
         <Route path="/admin/chat" element={<Accueil />} />
         <Route path="/admin/blocage" element={<Accueil />} />
+        <Route path="/admin/paiements" element={<Accueil />} />
       </Routes>
     </ThemeProvider>
   )

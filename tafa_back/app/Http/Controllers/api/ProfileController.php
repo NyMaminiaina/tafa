@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfileResource;
 use App\Http\Resources\ImageResource;
 use App\Models\Block;
+use App\Models\City;
 use App\Models\Interest;
 use App\Models\Like;
 use App\Models\Profile;
 use App\Models\Relationship_type;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
@@ -62,6 +65,49 @@ class ProfileController extends Controller
     }
 
 
+// Chercher une ville via l'API de géocodage Nominatim (OpenStreetMap, gratuite)
+// et la créer en base avec son pays et ses coordonnées GPS.
+// Retourne null si la ville est introuvable ou si le service est indisponible.
+    private function geocodeAndCreateCity(string $cityName): ?City
+    {
+        try {
+            $response = Http::withHeaders([
+                    // Nominatim exige un User-Agent identifiable (politique d'usage)
+                    'User-Agent' => 'TafaApp/1.0 (contact@tafa.example)',
+                ])
+                ->timeout(5)
+                ->get('https://nominatim.openstreetmap.org/search', [
+                    'q' => $cityName,
+                    'format' => 'json',
+                    'addressdetails' => 1,
+                    'limit' => 1,
+                ]);
+
+            if (!$response->successful()) {
+                Log::warning('Géocodage échoué (requête non réussie)', ['city' => $cityName]);
+                return null;
+            }
+
+            $results = $response->json();
+
+            if (empty($results)) {
+                return null;
+            }
+
+            $result = $results[0];
+
+            return City::create([
+                'name' => $cityName,
+                'country' => $result['address']['country'] ?? 'Inconnu',
+                'latitude' => $result['lat'],
+                'longitude' => $result['lon'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur de géocodage', ['city' => $cityName, 'error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
 // Mettre à jour le profil de l'utilisateur connecté
     public function update(Request $request)
     {
@@ -86,16 +132,49 @@ class ProfileController extends Controller
             'bio' => 'sometimes|string',
             'profession' => 'sometimes|string|max:255',
             'city_id' => 'sometimes|nullable|integer|exists:cities,id',
+            'city_name' => 'sometimes|nullable|string|max:255',
             'interests' => 'sometimes|array', 
             'interests.*' => 'integer|exists:interests,id',
             'langue_ids' => 'sometimes|array', 
             'langue_ids.*' => 'integer|exists:langues,id',
         ]);
 
+        // Résolution de la ville à partir du nom saisi (city_name)
+        // L'utilisateur peut taper n'importe quelle ville, où qu'il soit dans le monde.
+        // On cherche d'abord si elle existe déjà en base, sinon on la géocode
+        // (récupération automatique de country/latitude/longitude) avant de la créer.
+        if ($request->has('city_name')) {
+            $cityName = trim((string) $request->input('city_name'));
+
+            if ($cityName === '') {
+                $validated['city_id'] = null;
+            } else {
+                // Recherche insensible à la casse pour éviter les doublons
+                // (ex: "manakambahiny" et "Manakambahiny" ne doivent créer qu'une seule ville)
+                $city = City::whereRaw('LOWER(name) = ?', [mb_strtolower($cityName)])->first();
+
+                if (!$city) {
+                    $city = $this->geocodeAndCreateCity($cityName);
+
+                    if (!$city) {
+                        return response()->json([
+                            'error' => "Ville introuvable. Vérifiez l'orthographe et réessayez.",
+                        ], 422);
+                    }
+                }
+
+                $validated['city_id'] = $city->id;
+            }
+        }
+
+        // On ne garde pas city_name dans les données envoyées à Profile::update()
+        // car ce n'est pas une colonne de la table profiles.
+        unset($validated['city_name']);
+
         // Mise à jour du Nom et Prénom dans la table USERS
         $user->update($request->only(['name', 'firstname']));
         $profile->update($validated);
-        $profile->load('images');
+        $profile->load(['images', 'city']);
 
        
         if ($request->has('interests')) {
@@ -110,7 +189,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'message' => 'Profil mis à jour avec succès',
-            'profile' => $profile->load('langues', 'interests')
+            'profile' => $profile->load('langues', 'interests', 'city')
         ]);
     }
 

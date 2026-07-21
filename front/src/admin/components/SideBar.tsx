@@ -101,7 +101,7 @@ export default function SideBar({
                                         users: '/admin/utilisateurs',
                                         chat: '/admin/chat',
                                         ban: '/admin/blocage',
-                                        more: '/admin/accueil',
+                                        more: '/admin/paiements',
                                     };
                                     navigate(routes[link.url] || '/admin/accueil');
                                 }}

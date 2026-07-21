@@ -72,6 +72,8 @@ const Chat = () => {
 
   const [selectedRealUser, setSelectedRealUser] = useState<any | null>(null);
   const [firstMessage, setFirstMessage] = useState('👋 Bonjour !');
+  const [fakeSearchTerm, setFakeSearchTerm] = useState('');
+  const [fakeSearchResults, setFakeSearchResults] = useState<CreatedAccount[]>([]);
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setNewMessage(prev => prev + emojiData.emoji);
@@ -390,6 +392,19 @@ const Chat = () => {
     }
   };
 
+  const searchFakeAccounts = (search: string) => {
+    setFakeSearchTerm(search);
+    if (!search || search.length < 1) {
+      setFakeSearchResults([]);
+      return;
+    }
+    const filtered = accounts.filter(a =>
+      getDisplayName(a).toLowerCase().includes(search.toLowerCase()) ||
+      a.email.toLowerCase().includes(search.toLowerCase())
+    );
+    setFakeSearchResults(filtered);
+  };
+
   return (
     <div className="p-3 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/20 min-h-screen overflow-x-auto">
       {/* Header */}
@@ -403,51 +418,6 @@ const Chat = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          {/* SÉLECTEUR DE COMPTE */}
-          <div className="relative">
-            <button
-              onClick={() => setShowAccountSelector(!showAccountSelector)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 transition shadow-lg"
-            >
-              <Users size={18} />
-              {selectedAccount ? getDisplayName(selectedAccount) : 'Tous les comptes'}
-            </button>
-
-            {showAccountSelector && (
-              <div className="absolute top-full mt-2 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 max-h-80 overflow-y-auto">
-                <div className="p-3 border-b">
-                  <p className="text-sm font-semibold text-gray-700">Comptes créés par l'admin</p>
-                </div>
-                {selectedAccount && (
-                  <button
-                    onClick={() => {
-                      setSelectedAccount(null);
-                      setShowAccountSelector(false);
-                      fetchConversations(1);
-                    }}
-                    className="w-full text-left p-3 hover:bg-gray-50 transition text-blue-500 text-sm border-b border-gray-200 font-medium"
-                  >
-                    Afficher toutes les conversations
-                  </button>
-                )}
-                {accounts.map(account => (
-                  <button
-                    key={account.id}
-                    onClick={() => { setSelectedAccount(account); setShowAccountSelector(false); }}
-                    className={`w-full text-left p-3 hover:bg-gray-50 transition flex items-center gap-2 ${selectedAccount?.id === account.id ? 'bg-emerald-50' : ''}`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
-                      {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <div className="text-sm font-medium">{getDisplayName(account)}</div>
-                      <div className="text-xs text-gray-500">{account.email}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* BOUTON NOUVELLE DISCUSSION */}
           <button
@@ -489,17 +459,42 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl shadow border border-gray-200 p-6 mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Rechercher par nom ou email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
+      {/* Barre de filtre */}
+      <div className="bg-white rounded-2xl shadow border border-gray-200 p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Rechercher par nom ou email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Filtrer par compte :</span>
+            <select
+              value={selectedAccount?.id || ''}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) {
+                  const account = accounts.find(a => a.id === Number(id));
+                  setSelectedAccount(account || null);
+                } else {
+                  setSelectedAccount(null);
+                }
+              }}
+              className="px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+            >
+              <option value="">Tous les comptes</option>
+              {accounts.map(account => (
+                <option key={account.id} value={account.id}>
+                  {getDisplayName(account)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -712,30 +707,51 @@ const Chat = () => {
                     <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
                       {getDisplayName(selectedAccount).charAt(0)}
                     </span>
-                    <span className="font-medium text-sm">{getDisplayName(selectedAccount)}</span>
+                    <div>
+                      <span className="font-medium text-sm">{getDisplayName(selectedAccount)}</span>
+                      <span className="text-xs text-gray-500 ml-2">{selectedAccount.email}</span>
+                    </div>
                   </div>
-                  <button onClick={() => setSelectedAccount(null)} className="text-red-400 hover:text-red-600">
+                  <button onClick={() => { setSelectedAccount(null); setFakeSearchTerm(''); }} className="text-red-400 hover:text-red-600">
                     <X size={16} />
                   </button>
                 </div>
               ) : (
-                <div className="max-h-40 overflow-y-auto mb-4 space-y-1">
-                  {accounts.map(account => (
-                    <button
-                      key={account.id}
-                      onClick={() => setSelectedAccount(account)}
-                      className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
-                    >
-                      <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
-                        {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
-                      </span>
-                      <div>
-                        <div className="text-sm font-medium">{getDisplayName(account)}</div>
-                        <div className="text-xs text-gray-500">{account.email}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Rechercher un compte fake..."
+                      value={fakeSearchTerm}
+                      onChange={(e) => searchFakeAccounts(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                    />
+                  </div>
+                  {fakeSearchTerm && (
+                    <div className="max-h-40 overflow-y-auto mb-4 space-y-1">
+                      {fakeSearchResults.length === 0 ? (
+                        <p className="text-center text-gray-500 py-2 text-sm">Aucun compte trouvé</p>
+                      ) : (
+                        fakeSearchResults.map(account => (
+                          <button
+                            key={account.id}
+                            onClick={() => { setSelectedAccount(account); setFakeSearchTerm(''); setFakeSearchResults([]); }}
+                            className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
+                          >
+                            <span className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
+                              {(account.firstname || account.name || '?').charAt(0).toUpperCase()}
+                            </span>
+                            <div>
+                              <div className="text-sm font-medium">{getDisplayName(account)}</div>
+                              <div className="text-xs text-gray-500">{account.email}</div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Étape 2 : Choisir le compte réel */}

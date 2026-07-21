@@ -35,6 +35,7 @@ export default function Accueil() {
             case '/admin/chat': return 'chat';
             case '/admin/blocage': return 'ban';
             case '/admin/accueil': return 'stats';
+            case '/admin/paiements': return 'more';
             default: return 'stats';
         }
     };

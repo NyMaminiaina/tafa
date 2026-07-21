@@ -81,7 +81,7 @@ function LoginComponent() {
       <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-white/10 backdrop-blur-xl rounded-3xl overflow-hidden shadow-2xl border border-white/20">
         <div className="hidden lg:flex flex-col justify-between p-10 text-white bg-gradient-to-br from-cyan-600/40 to-blue-900/40">
           <div>
-            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-black mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-black mb-6" onClick={() => navigate('/')} >
               T
             </div>
             <h1 className="text-4xl font-black mb-4">Admin Tafa</h1>

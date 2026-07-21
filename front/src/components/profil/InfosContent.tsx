@@ -53,6 +53,7 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     bio: "",
@@ -182,11 +183,19 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
       if (response.ok) {
         // 2. Au lieu de naviguer, on affiche le succès
         setSuccess(true);
+        setErrorMsg(null);
         // Optionnel : masquer le message après 4 secondes
         setTimeout(() => setSuccess(false), 4000);
+      } else {
+        const errData = await response.json().catch(() => null);
+        console.error("Erreur mise à jour (réponse non ok)", response.status, errData);
+        setErrorMsg(
+          errData?.error || errData?.message || "Une erreur est survenue lors de l'enregistrement."
+        );
       }
     } catch (err) {
       console.error("Erreur mise à jour", err);
+      setErrorMsg("Impossible de contacter le serveur.");
     } finally {
       setLoading(false);
     }
@@ -422,6 +431,12 @@ const InfosContent: React.FC<InfosContentProps> = ({ }) => {
       {success && (
         <div className="mt-6 p-4 bg-green-50 text-green-700 rounded-2xl text-center font-semibold border border-green-200 animate-in fade-in zoom-in duration-300">
           Profil mis à jour avec succès !
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-2xl text-center font-semibold border border-red-200 animate-in fade-in zoom-in duration-300">
+          {errorMsg}
         </div>
       )}
     </div>
