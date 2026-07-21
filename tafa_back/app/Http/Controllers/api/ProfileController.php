@@ -20,7 +20,7 @@ class ProfileController extends Controller
 {
 
 
-//Afficher le profil de l'utilisateur connecté
+    //Afficher le profil de l'utilisateur connecté
     public function show(Request $request)
     {
         $user = $request->user();
@@ -31,11 +31,11 @@ class ProfileController extends Controller
             'city',
             'interests',
             'langues',
-            'images',  
+            'images',
 
         ])->where('user_id', $user->id)->firstOrFail();
 
-        $profile->zodiac_sign = $this->getZodiacSign($profile->date_de_naissance); 
+        $profile->zodiac_sign = $this->getZodiacSign($profile->date_de_naissance);
 
         return response()->json([
             'profile' => new ProfileResource($profile),
@@ -43,7 +43,7 @@ class ProfileController extends Controller
         ]);
     }
 
-// Calculer la distance entre deux coordonnées GPS (formule de Haversine)
+    // Calculer la distance entre deux coordonnées GPS (formule de Haversine)
     private function calculateDistanceHaversine(?float $lat1, ?float $lon1, ?float $lat2, ?float $lon2): ?float
     {
         if ($lat1 === null || $lon1 === null || $lat2 === null || $lon2 === null) {
@@ -56,8 +56,8 @@ class ProfileController extends Controller
         $dLon = deg2rad($lon2 - $lon1);
 
         $a = sin($dLat / 2) * sin($dLat / 2) +
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($dLon / 2) * sin($dLon / 2);
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
 
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
@@ -65,16 +65,16 @@ class ProfileController extends Controller
     }
 
 
-// Chercher une ville via l'API de géocodage Nominatim (OpenStreetMap, gratuite)
-// et la créer en base avec son pays et ses coordonnées GPS.
-// Retourne null si la ville est introuvable ou si le service est indisponible.
+    // Chercher une ville via l'API de géocodage Nominatim (OpenStreetMap, gratuite)
+    // et la créer en base avec son pays et ses coordonnées GPS.
+    // Retourne null si la ville est introuvable ou si le service est indisponible.
     private function geocodeAndCreateCity(string $cityName): ?City
     {
         try {
             $response = Http::withHeaders([
-                    // Nominatim exige un User-Agent identifiable (politique d'usage)
-                    'User-Agent' => 'TafaApp/1.0 (contact@tafa.example)',
-                ])
+                // Nominatim exige un User-Agent identifiable (politique d'usage)
+                'User-Agent' => 'TafaApp/1.0 (contact@tafa.example)',
+            ])
                 ->timeout(5)
                 ->get('https://nominatim.openstreetmap.org/search', [
                     'q' => $cityName,
@@ -108,7 +108,7 @@ class ProfileController extends Controller
         }
     }
 
-// Mettre à jour le profil de l'utilisateur connecté
+    // Mettre à jour le profil de l'utilisateur connecté
     public function update(Request $request)
     {
         $user = $request->user();
@@ -123,9 +123,19 @@ class ProfileController extends Controller
             return response()->json(['error' => 'Profil non trouvé'], 404);
         }
 
+        // Protection XSS en profondeur : on retire toute balise HTML/JS
+        // des champs texte libres avant validation (bio, profession, nom...).
+        // React échappe déjà l'affichage côté front, mais ça évite que du
+        // contenu malveillant soit stocké tel quel en base.
+        foreach (['name', 'firstname', 'bio', 'profession'] as $field) {
+            if ($request->has($field) && is_string($request->input($field))) {
+                $request->merge([$field => strip_tags(trim($request->input($field)))]);
+            }
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'firstname' => 'sometimes|string|max:255', 
+            'firstname' => 'sometimes|string|max:255',
             'date_de_naissance' => 'sometimes|date',
             'Situation_amoureuse' => 'sometimes|string|max:255',
             'relationship_type_id' => 'sometimes|integer',
@@ -133,9 +143,9 @@ class ProfileController extends Controller
             'profession' => 'sometimes|string|max:255',
             'city_id' => 'sometimes|nullable|integer|exists:cities,id',
             'city_name' => 'sometimes|nullable|string|max:255',
-            'interests' => 'sometimes|array', 
+            'interests' => 'sometimes|array',
             'interests.*' => 'integer|exists:interests,id',
-            'langue_ids' => 'sometimes|array', 
+            'langue_ids' => 'sometimes|array',
             'langue_ids.*' => 'integer|exists:langues,id',
         ]);
 
@@ -176,12 +186,12 @@ class ProfileController extends Controller
         $profile->update($validated);
         $profile->load(['images', 'city']);
 
-       
+
         if ($request->has('interests')) {
             // sync() supprime les anciens intérêts et met les nouveaux IDs
             $profile->interests()->sync($request->input('interests'));
         }
-        
+
         // Synchronisation des LANGUES
         if ($request->has('langue_ids')) {
             $profile->langues()->sync($request->input('langue_ids'));
@@ -193,7 +203,7 @@ class ProfileController extends Controller
         ]);
     }
 
-// Mettre à jour la localisation (latitude et longitude) 
+    // Mettre à jour la localisation (latitude et longitude) 
     // public function updateLocation(Request $request)
     // {
     //     $user = $request->user();
@@ -222,7 +232,7 @@ class ProfileController extends Controller
     //     ]);
     // }
 
-// Récupérer les profils en ligne à proximité de l'utilisateur connecté (filtrés par distance, blocage et genre)
+    // Récupérer les profils en ligne à proximité de l'utilisateur connecté (filtrés par distance, blocage et genre)
     public function getNearbyOnline(Request $request)
     {
         $user = $request->user();
@@ -298,12 +308,12 @@ class ProfileController extends Controller
     }
 
 
-//Récupérer les profils pour le matching (exclut l'utilisateur connecté)
-     
+    //Récupérer les profils pour le matching (exclut l'utilisateur connecté)
+
     public function getProfiles(Request $request)
     {
-        
-       
+
+
         $user = $request->user();
         // $user = User::find(296); // --- IGNORE ---
         if (!$user) {
@@ -319,7 +329,7 @@ class ProfileController extends Controller
 
         // Déterminer le genre opposé à afficher
         $oppositeGender = $currentUserProfile->sexe === 'Homme' ? 'Femme' : 'Homme';
-    
+
         $myLikes = Like::where('user_id', $user->id)
             ->whereIn('type', ['like', 'superlike'])
             ->pluck('liked_user_id')
@@ -329,7 +339,7 @@ class ProfileController extends Controller
             ->pluck('liked_user_id')
             ->toArray();
 
-        
+
         $theyLikedMe = Like::whereIn('user_id', $myLikes)
             ->where('liked_user_id', $user->id)
             ->whereIn('type', ['like', 'superlike'])
@@ -355,45 +365,44 @@ class ProfileController extends Controller
         $query = Profile::where('user_id', '!=', $user->id)
             ->where('sexe', $oppositeGender)
             ->whereNotIn('user_id', $excludeUserIds)
-            ->with('images','user', 'relationshipType', 'city', 'interests', 'langues');
-            
+            ->with('images', 'user', 'relationshipType', 'city', 'interests', 'langues');
+
         // Filtre par intention (si le champ existe)
-       if ($request->has('intention')) {
-                $intentionId = Relationship_type::where('name', $request->intention)->value('id');
+        if ($request->has('intention')) {
+            $intentionId = Relationship_type::where('name', $request->intention)->value('id');
 
-                if (!$intentionId) {
-                    return response()->json([
-                        'message' => 'Intention invalide'
-                    ], 400);
-                }
+            if (!$intentionId) {
+                return response()->json([
+                    'message' => 'Intention invalide'
+                ], 400);
+            }
 
-                $query->where('relationship_type_id', $intentionId);
+            $query->where('relationship_type_id', $intentionId);
         }
-       
+
 
         // Filtre par centre d'intérêt unique
-       if ($request->has('interest')) {
-        $interestId = Interest::where('name', $request->interest)->value('id');
-    
-        if (!$interestId) {
-            return response()->json([
-                'message' => 'Centre d\'intérêt invalide'
-            ], 400);
+        if ($request->has('interest')) {
+            $interestId = Interest::where('name', $request->interest)->value('id');
+
+            if (!$interestId) {
+                return response()->json([
+                    'message' => 'Centre d\'intérêt invalide'
+                ], 400);
+            }
+
+            $query->whereHas('interests', function ($q) use ($interestId) {
+                $q->where('interests.id', $interestId);
+            });
         }
 
-        $query->whereHas('interests', function ($q) use ($interestId) {
-        $q->where('interests.id', $interestId);
-        });
-
-    }
-       
 
         $profiles = $query->get();
         // dd($profiles);
 
         // Get distance filter parameters
         $maxDistance = $request->get('distance');
-        
+
 
 
         // Calculate compatibility and distance for each profile
@@ -402,11 +411,11 @@ class ProfileController extends Controller
             $compatibility = $this->calculateCompatibility($currentUserProfile, $profile);
             $profile->compatibility = $compatibility;
             $profile->zodiac_sign = $this->getZodiacSign($profile->date_de_naissance);
-            
+
 
             // Calculate distance via cities
             $distance = null;
-            
+
             if (
                 $currentUserProfile->city?->latitude &&
                 $currentUserProfile->city?->longitude &&
@@ -420,18 +429,18 @@ class ProfileController extends Controller
                     (float) $profile->city->longitude
                 );
             }
-            
+
             $profile->distance = $distance !== null ? round($distance, 1) : null;
-            
-                
+
+
             return $profile;
         });
-       
+
 
         // Check if user is Tafa Gold member
         $isTafaGold = $user->isTafaGold();
 
-       
+
         if (!$isTafaGold) {
             $profilesWithData = $profilesWithData->filter(function ($profile) {
                 return $profile->compatibility <= 75;
@@ -439,17 +448,17 @@ class ProfileController extends Controller
         }
 
         // Sort by compatibility (higher first)
-        $sortedProfiles = $profilesWithData->sortByDesc('compatibility')->values();//->take(8)
+        $sortedProfiles = $profilesWithData->sortByDesc('compatibility')->values(); //->take(8)
         // dd($sortedProfiles);
 
         return response()->json([
-        //    'profiles' => []// ProfileResource::collection($sortedProfiles)
-          'profiles' =>ProfileResource::collection($sortedProfiles)
+            //    'profiles' => []// ProfileResource::collection($sortedProfiles)
+            'profiles' => ProfileResource::collection($sortedProfiles)
         ]);
     }
 
 
-//Récupérer un profil par son ID
+    //Récupérer un profil par son ID
 
     public function getProfileById(Request $request, $id)
     {
@@ -485,7 +494,7 @@ class ProfileController extends Controller
         if ($currentUserProfile) {
             $profile->compatibility = $this->calculateCompatibility($currentUserProfile, $profile);
         }
-        
+
         $profile->zodiac_sign = $this->getZodiacSign($profile->date_de_naissance);
 
         return response()->json([
@@ -493,7 +502,7 @@ class ProfileController extends Controller
         ]);
     }
 
-// Récupérer les statistiques du profil (likes, matchs et vues)
+    // Récupérer les statistiques du profil (likes, matchs et vues)
     public function getStats(Request $request)
     {
         $user = $request->user();
@@ -536,7 +545,7 @@ class ProfileController extends Controller
         ]);
     }
 
-// Enregistrer une vue de profil (une seule fois par jour par utilisateur)
+    // Enregistrer une vue de profil (une seule fois par jour par utilisateur)
     public function recordView(Request $request, $profileUserId)
     {
         $user = $request->user();
@@ -573,125 +582,125 @@ class ProfileController extends Controller
         return response()->json(['message' => 'OK']);
     }
 
-// Calculer compatibilité entre 2 profiles
+    // Calculer compatibilité entre 2 profiles
     private function calculateCompatibility(Profile $userProfile, Profile $otherProfile): int
     {
-    $score = 0;
-    $maxScore = 0;
+        $score = 0;
+        $maxScore = 0;
 
-    // 1. Relationship intention match - 25 points
-    $maxScore += 10;
-    if ($userProfile->relationship_type_id && $otherProfile->relationship_type_id) {
-        if ($userProfile->relationship_type_id === $otherProfile->relationship_type_id) {
-            $score += 10;
-        }
-    }
-
-    // 2. Situation amoureuse compatibility - 20 points
-    $maxScore += 20;
-    if ($userProfile->Situation_amoureuse && $otherProfile->Situation_amoureuse) {
-        $singleStatuses = ['Celibataire', 'Divorce', 'veuf', 'separe'];
-        $userIsSingle = in_array($userProfile->Situation_amoureuse, $singleStatuses);
-        $otherIsSingle = in_array($otherProfile->Situation_amoureuse, $singleStatuses);
-
-        if ($userIsSingle && $otherIsSingle) {
-            $score += 20;
-        } elseif ($userProfile->Situation_amoureuse === $otherProfile->Situation_amoureuse) {
-            $score += 15;
-        }
-    }
-
-    // 3. Common interests - 35 points
-    $maxScore += 35;
-    $userInterests = $userProfile->interests->pluck('name')->toArray();
-    $otherInterests = $otherProfile->interests->pluck('name')->toArray();
-
-    if (!empty($userInterests) && !empty($otherInterests)) {
-        $commonInterests = array_intersect($userInterests, $otherInterests);
-        $totalInterests = count(array_unique(array_merge($userInterests, $otherInterests)));
-
-        if ($totalInterests > 0) {
-            $score += (count($commonInterests) / $totalInterests) * 35;
-        }
-    }
-
-    // 4. Zodiac compatibility - 5 points
-    $maxScore += 5;
-    if ($userProfile->date_de_naissance && $otherProfile->date_de_naissance) {
-        $compatibleSigns = [
-            'Bélier' => ['Lion', 'Sagittaire', 'Gémeaux', 'Verseau'],
-            'Taureau' => ['Vierge', 'Capricorne', 'Cancer', 'Poissons'],
-            'Gémeaux' => ['Balance', 'Verseau', 'Lion', 'Bélier'],
-            'Cancer' => ['Scorpion', 'Poissons', 'Taureau', 'Vierge'],
-            'Lion' => ['Bélier', 'Sagittaire', 'Gémeaux', 'Balance'],
-            'Vierge' => ['Taureau', 'Capricorne', 'Cancer', 'Scorpion'],
-            'Balance' => ['Gémeaux', 'Verseau', 'Lion', 'Sagittaire'],
-            'Scorpion' => ['Cancer', 'Poissons', 'Vierge', 'Capricorne'],
-            'Sagittaire' => ['Bélier', 'Lion', 'Balance', 'Gémeaux'],
-            'Capricorne' => ['Taureau', 'Vierge', 'Scorpion', 'Poissons'],
-            'Verseau' => ['Gémeaux', 'Balance', 'Bélier', 'Sagittaire'],
-            'Poissons' => ['Cancer', 'Scorpion', 'Taureau', 'Capricorne'],
-        ];
-
-        $userSign = $this->getZodiacSign($userProfile->date_de_naissance);
-        $otherSign = $this->getZodiacSign($otherProfile->date_de_naissance);
-
-        if (isset($compatibleSigns[$userSign]) && in_array($otherSign, $compatibleSigns[$userSign])) {
-            $score += 5;
-        }
-    }
-
-    // 5. Location proximity bonus - 30 points
-    $maxScore += 30;
-    
-    if (
-        $userProfile->city?->latitude &&
-        $userProfile->city?->longitude &&
-        $otherProfile->city?->latitude &&
-        $otherProfile->city?->longitude
-    ) {
-        $distance = $this->calculateDistanceHaversine(
-            (float) $userProfile->city->latitude,
-            (float) $userProfile->city->longitude,
-            (float) $otherProfile->city->latitude,
-            (float) $otherProfile->city->longitude
-        );
-    
-        if ($distance !== null) {
-            if ($distance < 5) {
-                $score += 30;
-            } elseif ($distance < 10) {
-                $score += 20;
-            } elseif ($distance < 25) {
-                $score += 12;
-            } elseif ($distance < 50) {
-                $score += 8;
-            } elseif ($distance < 100) {
-                $score += 4;
+        // 1. Relationship intention match - 25 points
+        $maxScore += 10;
+        if ($userProfile->relationship_type_id && $otherProfile->relationship_type_id) {
+            if ($userProfile->relationship_type_id === $otherProfile->relationship_type_id) {
+                $score += 10;
             }
         }
-    }
-    // 6. Language compatibility - 5 points
-    $maxScore += 5;
-    if ($userProfile->langues && $otherProfile->langues) {
-        $userLangs = $userProfile->langues->pluck('name')->toArray();
-        $otherLangs = $otherProfile->langues->pluck('name')->toArray();
-        if (!empty(array_intersect($userLangs, $otherLangs))) {
-            $score += 5;
+
+        // 2. Situation amoureuse compatibility - 20 points
+        $maxScore += 20;
+        if ($userProfile->Situation_amoureuse && $otherProfile->Situation_amoureuse) {
+            $singleStatuses = ['Celibataire', 'Divorce', 'veuf', 'separe'];
+            $userIsSingle = in_array($userProfile->Situation_amoureuse, $singleStatuses);
+            $otherIsSingle = in_array($otherProfile->Situation_amoureuse, $singleStatuses);
+
+            if ($userIsSingle && $otherIsSingle) {
+                $score += 20;
+            } elseif ($userProfile->Situation_amoureuse === $otherProfile->Situation_amoureuse) {
+                $score += 15;
+            }
         }
+
+        // 3. Common interests - 35 points
+        $maxScore += 35;
+        $userInterests = $userProfile->interests->pluck('name')->toArray();
+        $otherInterests = $otherProfile->interests->pluck('name')->toArray();
+
+        if (!empty($userInterests) && !empty($otherInterests)) {
+            $commonInterests = array_intersect($userInterests, $otherInterests);
+            $totalInterests = count(array_unique(array_merge($userInterests, $otherInterests)));
+
+            if ($totalInterests > 0) {
+                $score += (count($commonInterests) / $totalInterests) * 35;
+            }
+        }
+
+        // 4. Zodiac compatibility - 5 points
+        $maxScore += 5;
+        if ($userProfile->date_de_naissance && $otherProfile->date_de_naissance) {
+            $compatibleSigns = [
+                'Bélier' => ['Lion', 'Sagittaire', 'Gémeaux', 'Verseau'],
+                'Taureau' => ['Vierge', 'Capricorne', 'Cancer', 'Poissons'],
+                'Gémeaux' => ['Balance', 'Verseau', 'Lion', 'Bélier'],
+                'Cancer' => ['Scorpion', 'Poissons', 'Taureau', 'Vierge'],
+                'Lion' => ['Bélier', 'Sagittaire', 'Gémeaux', 'Balance'],
+                'Vierge' => ['Taureau', 'Capricorne', 'Cancer', 'Scorpion'],
+                'Balance' => ['Gémeaux', 'Verseau', 'Lion', 'Sagittaire'],
+                'Scorpion' => ['Cancer', 'Poissons', 'Vierge', 'Capricorne'],
+                'Sagittaire' => ['Bélier', 'Lion', 'Balance', 'Gémeaux'],
+                'Capricorne' => ['Taureau', 'Vierge', 'Scorpion', 'Poissons'],
+                'Verseau' => ['Gémeaux', 'Balance', 'Bélier', 'Sagittaire'],
+                'Poissons' => ['Cancer', 'Scorpion', 'Taureau', 'Capricorne'],
+            ];
+
+            $userSign = $this->getZodiacSign($userProfile->date_de_naissance);
+            $otherSign = $this->getZodiacSign($otherProfile->date_de_naissance);
+
+            if (isset($compatibleSigns[$userSign]) && in_array($otherSign, $compatibleSigns[$userSign])) {
+                $score += 5;
+            }
+        }
+
+        // 5. Location proximity bonus - 30 points
+        $maxScore += 30;
+
+        if (
+            $userProfile->city?->latitude &&
+            $userProfile->city?->longitude &&
+            $otherProfile->city?->latitude &&
+            $otherProfile->city?->longitude
+        ) {
+            $distance = $this->calculateDistanceHaversine(
+                (float) $userProfile->city->latitude,
+                (float) $userProfile->city->longitude,
+                (float) $otherProfile->city->latitude,
+                (float) $otherProfile->city->longitude
+            );
+
+            if ($distance !== null) {
+                if ($distance < 5) {
+                    $score += 30;
+                } elseif ($distance < 10) {
+                    $score += 20;
+                } elseif ($distance < 25) {
+                    $score += 12;
+                } elseif ($distance < 50) {
+                    $score += 8;
+                } elseif ($distance < 100) {
+                    $score += 4;
+                }
+            }
+        }
+        // 6. Language compatibility - 5 points
+        $maxScore += 5;
+        if ($userProfile->langues && $otherProfile->langues) {
+            $userLangs = $userProfile->langues->pluck('name')->toArray();
+            $otherLangs = $otherProfile->langues->pluck('name')->toArray();
+            if (!empty(array_intersect($userLangs, $otherLangs))) {
+                $score += 5;
+            }
+        }
+
+        // Calculer le pourcentage final
+        if ($maxScore === 0) {
+            return 50;
+        }
+
+        return (int) round(($score / $maxScore) * 100);
     }
 
-    // Calculer le pourcentage final
-    if ($maxScore === 0) {
-        return 50;
-    }
-
-    return (int) round(($score / $maxScore) * 100);
-    }
 
 
-
-// Sign qtro
+    // Sign qtro
     private function getZodiacSign($date)
     {
         $date = new \DateTime($date);
@@ -711,5 +720,4 @@ class ProfileController extends Controller
         if (($month == 11 && $day >= 22) || ($month == 12 && $day <= 21)) return 'Sagittaire';
         if (($month == 12 && $day >= 22) || ($month == 1 && $day <= 19)) return 'Capricorne';
     }
-
 }

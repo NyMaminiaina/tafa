@@ -18,9 +18,9 @@ use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
-    
 
-// Login utilisateur
+
+    // Login utilisateur
     public function login(Request $request)
     {
         // Validation des inputs
@@ -41,39 +41,39 @@ class AuthController extends Controller
         $primaryImage = $user->profile->images()->where('is_primary', true)->first();
         // Génère un token Sanctum
         $token = $user->createToken("mobile")->plainTextToken;
-    return response()->json([
-        'message' => 'Connexion réussie.',
-        'user'    => [
-                    'id'         => $user->id,
-                    'name'       => $user->name,
-                    'firstname' => $user->firstname,
-                    'email'      => $user->email,
-                    ],
-        'image' => $primaryImage ? asset($primaryImage->path) : null,
-        'token'   => $token,
-    ], 201);   
+        return response()->json([
+            'message' => 'Connexion réussie.',
+            'user'    => [
+                'id'         => $user->id,
+                'name'       => $user->name,
+                'firstname' => $user->firstname,
+                'email'      => $user->email,
+            ],
+            'image' => $primaryImage ? asset($primaryImage->path) : null,
+            'token'   => $token,
+        ], 201);
     }
 
- 
-// Deconnection
+
+    // Deconnection
     public function logout(Request $request)
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
-    
+
         /** @var PersonalAccessToken|null $token */
         $token = $user?->currentAccessToken();
-    
+
         if ($token) {
             $token->delete();
         }
-    
+
         return response()->json([
             'message' => 'Déconnexion réussie.'
         ]);
     }
 
-// Modifier Mot de passe 
+    // Modifier Mot de passe 
     public function changePassword(Request $request)
     {
         $user = $request->user();
@@ -105,7 +105,7 @@ class AuthController extends Controller
         ]);
     }
 
-// Modifier email d'un utilisateur
+    // Modifier email d'un utilisateur
     public function changeEmail(Request $request)
     {
         $user = $request->user();
@@ -156,7 +156,7 @@ class AuthController extends Controller
         ]);
     }
 
-// Récupère et retourne les informations de l’utilisateur actuellement connecté
+    // Récupère et retourne les informations de l’utilisateur actuellement connecté
     public function getUserInfo(Request $request)
     {
         $user = $request->user();
@@ -175,7 +175,7 @@ class AuthController extends Controller
         ]);
     }
 
-// Génère un token et un code OTP pour réinitialiser le mot de passe puis envoie un email avec le lien de réinitialisation
+    // Génère un token et un code OTP pour réinitialiser le mot de passe puis envoie un email avec le lien de réinitialisation
     public function forgotPassword(Request $request)
     {
         logger('Received forgot password request for email: ' . $request->email);
@@ -183,17 +183,16 @@ class AuthController extends Controller
             'email' => 'required|email',
         ]);
 
-       
+
         $user = User::where('email', $request->email)->first();
         $resetUrl = null;
         if (!$user) {
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Si cette adresse email existe, vous recevrez un code de réinitialisation.',
-                
-            ]);            
-        
+
+            ]);
         }
         // Generate reset token and otp (6-digit code)
         $token = Str::random(64);
@@ -212,7 +211,7 @@ class AuthController extends Controller
         $frontendUrl = config('app.frontend_url', 'http://localhost:5173');
         $resetUrl = $frontendUrl . '/reset-password?token=' . $token . '&email=' . urlencode($request->email);
         try {
-            
+
             // Mail::to($request->email)->send(new ResetPasswordMail(
             //     $resetUrl,
             //     $otp,
@@ -223,24 +222,24 @@ class AuthController extends Controller
                 'api-key' => env('BREVO_API_KEY'),
                 'content-type' => 'application/json',
             ])->post('https://api.brevo.com/v3/smtp/email', [
-            
+
                 'sender' => [
                     'name' => 'TAFA',
                     'email' => 'franchmalalatina@gmail.com'
                 ],
-            
+
                 'to' => [
                     [
                         'email' => $request->email
                     ]
                 ],
-            
+
                 'subject' => 'Code de réinitialisation TAFA',
-            
+
                 'htmlContent' => "
                     <h2>TAFA</h2>
             
-                    <p>Bonjour {$user->firstname},</p>
+                    <p>Bonjour " . htmlspecialchars($user->firstname ?? '', ENT_QUOTES, 'UTF-8') . ",</p>
             
                     <p>Votre code de réinitialisation est :</p>
             
@@ -258,11 +257,11 @@ class AuthController extends Controller
                     </p>
                 "
             ]);
-            
+
             Log::info($response->body());
             if (!$response->successful()) {
                 Log::error('Brevo Error: ' . $response->body());
-            
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Erreur lors de l\'envoi de l\'email',
@@ -290,7 +289,7 @@ class AuthController extends Controller
         ]);
     }
 
-// Vérifie le token de réinitialisation puis met à jour le mot de passe de l’utilisateur
+    // Vérifie le token de réinitialisation puis met à jour le mot de passe de l’utilisateur
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -352,7 +351,7 @@ class AuthController extends Controller
         ]);
     }
 
-// Vérifie si le token de réinitialisation est valide et non expiré
+    // Vérifie si le token de réinitialisation est valide et non expiré
     public function verifyResetToken(Request $request)
     {
         $request->validate([
@@ -393,8 +392,8 @@ class AuthController extends Controller
             'message' => 'Token valide'
         ]);
     }
-    
-// Vérifie le code OTP puis génère un nouveau token pour permettre la réinitialisation du mot de passe
+
+    // Vérifie le code OTP puis génère un nouveau token pour permettre la réinitialisation du mot de passe
     public function verifyOtp(Request $request)
     {
         $resetRecord = DB::table('password_reset_tokens')
@@ -424,7 +423,7 @@ class AuthController extends Controller
                 'message' => 'Code OTP invalide'
             ]);
         }
-      
+
         $token = Str::random(64);
 
         DB::table('password_reset_tokens')
@@ -436,12 +435,12 @@ class AuthController extends Controller
 
         return response()->json([
             'valid' => true,
-            'token'=>$token,
+            'token' => $token,
             'message' => 'Code OTP valide'
         ]);
     }
 
-// Vérifie le token issu du code OTP puis met à jour le mot de passe de l’utilisateur
+    // Vérifie le token issu du code OTP puis met à jour le mot de passe de l’utilisateur
     public function passwordResetByOtp(Request $request)
     {
         // Find the reset token
@@ -475,7 +474,7 @@ class AuthController extends Controller
         }
 
         // Update user password
-        
+
         $user = User::where('email', $request->email)->first();
 
         if (!$user) {
@@ -497,6 +496,4 @@ class AuthController extends Controller
             'message' => 'Mot de passe réinitialisé avec succès'
         ]);
     }
-
-    
 }

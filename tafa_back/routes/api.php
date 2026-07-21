@@ -44,7 +44,7 @@ Route::get('/test-mail', function () {
 });
 
 // Route pour l'inscription
-Route::post('/register', [RegistrationController::class, 'register']);
+Route::post('/register', [RegistrationController::class, 'register'])->middleware('throttle:10,1');
 // Route pour vérifier si un email existe déjà
 Route::get('/check-email', function (Illuminate\Http\Request $request) {
     $exists = \App\Models\User::where('email', $request->email)->exists();
@@ -58,7 +58,8 @@ Route::get('/check-phone', function (Illuminate\Http\Request $request) {
 });
 
 // Route pour la connexion
-Route::post('/login', [AuthController::class, 'login']);
+// throttle:6,1 → max 6 tentatives par minute et par IP, pour limiter le brute-force
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
 
 // Routes pour vérification email (publiques)
 Route::post('/verify-email', [RegistrationController::class, 'verifyEmail']);
@@ -181,7 +182,7 @@ Route::prefix('admin')->group(function () {
         Route::put('/reports/{id}', [AdminController::class, 'updateReport']);
         Route::get('/blocks', [AdminController::class, 'getBlocks']);
         Route::get('/conversations', [AdminController::class, 'getConversations']);
-        
+
         Route::get('/created-accounts', [AdminController::class, 'getCreatedAccounts']);
         Route::post('/send-message-as', [MessageController::class, 'sendMessageAsUser']);
     });
