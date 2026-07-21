@@ -119,7 +119,7 @@ function Profil() {
     if (!path) return "/default-avatar.png";
     if (path.startsWith("http")) return path;
     // Remplacer /storage/ par / pour les images
-    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    const cleanPath = path.replace(/^\/storage\//, '/').replace(/^\//, '');
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
     return `${cleanBase}${cleanPath}`;
   };

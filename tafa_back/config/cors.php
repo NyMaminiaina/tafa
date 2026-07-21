@@ -19,17 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    // On restreint aux origines connues de notre propre frontend au lieu de '*'.
-    // '*' autorisait n'importe quel site web à appeler notre API depuis le
-    // navigateur d'un visiteur, ce qui est une mauvaise pratique de sécurité
-    // (et incompatible en théorie avec supports_credentials=true).
-    'allowed_origins' => array_filter(array_merge(
-        [
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
-        ],
-        explode(',', env('FRONTEND_URLS', ''))
-    )),
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 

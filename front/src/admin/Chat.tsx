@@ -56,7 +56,6 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [showAccountSelector, setShowAccountSelector] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messagesPage, setMessagesPage] = useState(1);
@@ -134,45 +133,6 @@ const Chat = () => {
       console.error(err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchMessages = async (contactId: number, page: number = 1) => {
-    if (page === 1) setIsLoadingMessages(true);
-    else setLoadingMoreMessages(true);
-
-    try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_URL}/messages/${contactId}?admin_user_id=${selectedAccount?.id}&page=${page}&per_page=20`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      const msgs = (data.messages || []).map((m: any) => ({
-        ...m,
-        is_mine: m.sender_id === selectedAccount?.id
-      }));
-
-      if (page === 1) {
-        setMessages(msgs.reverse());
-        setMessagesPage(1);
-        setHasMoreMessages(data.has_more || msgs.length >= 20);
-      } else {
-        const container = document.querySelector('.chat-messages-container');
-        if (container) previousScrollHeight.current = container.scrollHeight;
-        setMessages(prev => [...msgs.reverse(), ...prev]);
-        setMessagesPage(page);
-        setHasMoreMessages(data.has_more || msgs.length >= 20);
-        requestAnimationFrame(() => {
-          if (container) {
-            container.scrollTop = container.scrollHeight - previousScrollHeight.current;
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Erreur chargement messages:', err);
-    } finally {
-      setIsLoadingMessages(false);
-      setLoadingMoreMessages(false);
     }
   };
 
