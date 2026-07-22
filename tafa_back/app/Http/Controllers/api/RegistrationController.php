@@ -36,14 +36,14 @@ class RegistrationController extends Controller
             if ($request->hasFile('file')) {
                 foreach ($request->file('file') as $index => $file) {
                     $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
-                    $destinationPath = public_path('storage/profiles_images');
+                    $destinationPath = public_path('profiles_images');
                     if (!file_exists($destinationPath)) {
                         mkdir($destinationPath, 0755, true);
                     }
                     $file->move($destinationPath, $filename);
                     Image::create([
                         'profile_id' => $profile->id,
-                        'path' => '/storage/profiles_images/' . $filename,
+                        'path' => '/profiles_images/' . $filename,
                         'is_primary' => $index === 0,
                     ]);
                 }

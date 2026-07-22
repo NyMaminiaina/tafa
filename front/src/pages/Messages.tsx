@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { deleteMessageForAll, deleteMessageForMe } from "../api/api";
 import Navbar from "../components/Navbar";
 
 import { FaInfoCircle, FaArrowLeft, FaSmile, FaCommentDots, FaPaperPlane, FaBan, FaSearch } from "react-icons/fa";
@@ -101,9 +100,7 @@ const Messages: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState<string | null>(null);
-  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
 
   const getDisplayName = (user: { firstname: string | null; name: string }) => {
     return [user.firstname, user.name]
@@ -478,41 +475,11 @@ const Messages: React.FC = () => {
     navigate(`/profil/${activeConversation.other_user.id}`);
   };
 
-  const handleDeleteForMe = async (id: number) => {
-    try {
-      await deleteMessageForMe(id);
-      setMessages(prev => prev.filter(msg => msg.id !== id));
-    } catch (error) {
-      console.error("Erreur suppression:", error);
-    }
-  };
-
-  const handleDeleteForAll = async (id: number) => {
-    await deleteMessageForAll(id);
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === id ? { ...msg, content: "Ce message a été supprimé" } : msg
-      )
-    );
-  };
-
-  useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, []);
-
-  // Rafraîchissement intelligent des messages (uniquement si conversation active)
-  // -> le prof demande : max 5 tentatives espacées de 3s, puis STOP (pas de boucle infinie).
-  //    Un nouveau cycle de 5x3s ne redémarre que si :
-  //      - on change de conversation (clic sur un autre utilisateur, ex: "Marco")
-  //      - on revient sur l'onglet navigateur (visibilitychange)
-  //      - on recharge la page (le composant est remonté de zéro)
   useEffect(() => {
     if (!activeConversation) return;
 
-    const MAX_ATTEMPTS = 5;
-    const POLL_DELAY = 3000; // 3 secondes
+    const MAX_ATTEMPTS = 12;
+    const POLL_DELAY = 5000; // 5 secondes
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let attempts = 0;
@@ -585,6 +552,60 @@ const Messages: React.FC = () => {
     };
   }, [activeConversation]);
 
+  useEffect(() => {
+    const MAX_ATTEMPTS = 12;
+    const POLL_DELAY = 5000; // 5 secondes
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let attempts = 0;
+
+    const pollConversations = async () => {
+      attempts += 1;
+
+      try {
+        await fetchConversations();
+      } catch (error) {
+        console.error("Erreur refresh conversations:", error);
+      } finally {
+        if (attempts >= MAX_ATTEMPTS && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      }
+    };
+
+    const startPolling = () => {
+      if (intervalId) return;
+      attempts = 0;
+      intervalId = setInterval(pollConversations, POLL_DELAY);
+    };
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    if (document.visibilityState === "visible") {
+      startPolling();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setNewMessage(prev => prev + emojiData.emoji);
   };
@@ -608,7 +629,7 @@ const Messages: React.FC = () => {
     <div className="w-screen h-screen overflow-hidden theme-bg-primary">
       <Navbar />
 
-      <main className="flex-1 overflow-hidden theme-bg-primary h-[calc(100vh-80px)] w-full pt-20">
+      <main className="flex-1 overflow-hidden theme-bg-primary h-[calc(100vh-60px)] w-full pt-16 sm:pt-20">
         <div className="h-full w-full max-w-[1800px] mx-auto flex gap-4 md:gap-6 px-3 md:px-6">
 
           {/* ============= LISTE DES CONVERSATIONS ============= */}
@@ -705,7 +726,6 @@ const Messages: React.FC = () => {
                               </div>
                             ) : (
                               <p className="text-sm theme-text-secondary truncate">
-                                {conv.last_message?.is_mine ? "Vous : " : isTafa ? "" : "Lui : "}
                                 {conv.last_message?.content}
                               </p>
                             )}
@@ -722,10 +742,11 @@ const Messages: React.FC = () => {
           {/* ============= ZONE DE CHAT ============= */}
           <div
             className={`
-              ${isMobile && !activeConversation ? 'hidden' : 'flex-1 w-full'}
-              theme-bg-primary rounded-none md:rounded-3xl
-              shadow-sm border theme-border
-              overflow-hidden flex flex-col h-full
+                ${isMobile && !activeConversation ? 'hidden' : 'flex-1 w-full'}
+                theme-bg-primary rounded-none md:rounded-3xl
+                shadow-sm border theme-border
+                overflow-hidden flex flex-col h-full
+                ${isMobile ? 'pb-16' : ''}
             `}
           >
             {activeConversation ? (
@@ -798,7 +819,7 @@ const Messages: React.FC = () => {
                     <div key={msg.id} className="flex-shrink-0 px-4 pt-4 md:px-6 md:pt-6 pb-2 border-b border-pink-100/50">
                       <div className="flex justify-center w-full">
                         {msg.related_user ? (
-                          <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-full bg-gradient-to-br from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/20 rounded-2xl border-2 border-pink-200 dark:border-pink-800 shadow-lg">
+                          <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-full rounded-2xl border-2 shadow-lg" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--color-primary-light)' }}>
                             <div className="relative">
                               <img
                                 src={getAvatarUrl(msg.related_user.avatar)}
@@ -808,14 +829,14 @@ const Messages: React.FC = () => {
                               />
                               <span className="absolute -bottom-1 -right-1 text-2xl">🎉</span>
                             </div>
-                            <p className="text-center text-sm font-medium px-4 theme-text-primary">
+                            <p className="text-center text-sm font-medium px-4" style={{ color: 'var(--text-primary)' }}>
                               Vous avez matché avec{" "}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate(`/messages?userId=${msg.related_user!.id}`);
                                 }}
-                                className="text-pink-500 font-bold underline hover:text-pink-600 transition-colors"
+                                className="font-bold underline hover:opacity-80 transition-colors" style={{ color: 'var(--color-primary)' }}
                               >
                                 {getDisplayName(msg.related_user)}
                               </button>
@@ -942,28 +963,6 @@ const Messages: React.FC = () => {
                               <div
                                 className={`flex items-end gap-2 group ${msg.is_mine ? "flex-row-reverse" : "flex-row"} max-w-[85%] sm:max-w-[75%] md:max-w-[65%]`}
                               >
-                                {/* Bouton menu ⋮ */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                    const menuWidth = 176;
-                                    const menuHeight = msg.is_mine ? 130 : 90;
-                                    const openUp = rect.bottom + menuHeight > window.innerHeight;
-                                    setMenuCoords({
-                                      top: openUp ? rect.top - menuHeight - 6 : rect.bottom + 6,
-                                      left: msg.is_mine ? rect.right - menuWidth : rect.left,
-                                    });
-                                    setOpenMenuId(openMenuId === msg.id ? null : msg.id);
-                                  }}
-                                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 
-                              text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
-                              transition-all mt-1 text-lg px-1.5 py-0.5 rounded-lg 
-                              hover:bg-gray-100 dark:hover:bg-zinc-700/50 mb-1"
-                                >
-                                  ⋮
-                                </button>
-
                                 {/* Bulle de message */}
                                 <div
                                   className={`relative px-4 py-2.5 rounded-2xl text-sm shadow-sm
@@ -984,40 +983,6 @@ const Messages: React.FC = () => {
                                     {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                   </span>
 
-                                  {/* Menu contextuel */}
-                                  {openMenuId === msg.id && (
-                                    <div
-                                      onClick={(e) => e.stopPropagation()}
-                                      style={{
-                                        position: "fixed",
-                                        top: `${menuCoords.top}px`,
-                                        left: `${menuCoords.left}px`,
-                                        zIndex: 99999,
-                                      }}
-                                      className="w-44 theme-bg-primary border theme-border rounded-xl shadow-2xl overflow-hidden backdrop-blur-sm"
-                                    >
-                                      <button
-                                        onClick={() => { handleDeleteForMe(msg.id); setOpenMenuId(null); }}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                                      >
-                                        🗑 Supprimer pour moi
-                                      </button>
-                                      {msg.is_mine && (
-                                        <button
-                                          onClick={() => { handleDeleteForAll(msg.id); setOpenMenuId(null); }}
-                                          className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors border-t border-gray-100 dark:border-zinc-800"
-                                        >
-                                          🗑 Supprimer pour tous
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={() => setOpenMenuId(null)}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors border-t border-gray-100 dark:border-zinc-800"
-                                      >
-                                        Annuler
-                                      </button>
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </div>

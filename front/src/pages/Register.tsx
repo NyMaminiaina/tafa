@@ -61,6 +61,7 @@ function Register() {
 
   const [phoneError, setPhoneError] = useState("");
   const [checkingPhone, setCheckingPhone] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
 
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperIndex, setCropperIndex] = useState<number | null>(null);
@@ -275,7 +276,9 @@ function Register() {
     email &&
     !emailError &&
     password &&
+    confirm &&
     password === confirm &&
+    !confirmError &&
     passwordChecks.length8 &&
     passwordChecks.uppercase &&
     passwordChecks.number;
@@ -986,7 +989,15 @@ function Register() {
                 <input
                   type={showConfirm ? "text" : "password"}
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={(e) => {
+                    setConfirm(e.target.value);
+                    setConfirmError("");
+                  }}
+                  onBlur={() => {
+                    if (confirm && confirm !== password) {
+                      setConfirmError("Les mots de passe ne correspondent pas");
+                    }
+                  }}
                   placeholder="Confirmez votre mot de passe"
                   className="w-full pl-4 pr-10 py-3.5 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition outline-none"
                   style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
@@ -997,6 +1008,7 @@ function Register() {
                 >
                   {showConfirm ? <FaEyeSlash /> : <FaEye />}
                 </div>
+                {confirmError && <p className="text-red-500 text-xs mt-1 ml-2">{confirmError}</p>}
               </div>
 
               <div className="mb-6 rounded-2xl p-4" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>

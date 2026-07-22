@@ -25,7 +25,7 @@ function Navbar() {
     if (photo.startsWith("http")) return photo;
 
     // Remplacer /storage/ par / pour les images
-    const cleanPath = photo.startsWith('/') ? photo.substring(1) : photo;
+    const cleanPath = photo.replace(/^\/storage\//, '/');
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
     const finalUrl = `${cleanBase}${cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath}`;
 
@@ -34,6 +34,10 @@ function Navbar() {
   };
 
   // pour notification du nombre de message
+  // -> même contrainte que dans Messages.tsx : max 5 tentatives espacées de 3s,
+  //    puis STOP (pas de boucle infinie toutes les 30s pour toujours).
+  //    Un nouveau cycle de 5x3s redémarre uniquement au retour sur l'onglet
+  //    (visibilitychange) ou via l'événement "navbar-message-update".
   useEffect(() => {
 
     const fetchUnreadConversations = async () => {
@@ -61,15 +65,25 @@ function Navbar() {
       }
     };
 
-    // 1er appel immédiat au chargement
-    fetchUnreadConversations();
+    const MAX_ATTEMPTS = 12;
+    const POLL_DELAY = 5000; // 5 secondes
 
-    // Boucle légère : on revérifie toutes les 8 secondes
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let attempts = 0;
+
+    const pollUnread = async () => {
+      attempts += 1;
+      await fetchUnreadConversations();
+      if (attempts >= MAX_ATTEMPTS && intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
 
     const startPolling = () => {
-      if (intervalId) return;
-      intervalId = setInterval(fetchUnreadConversations, 30000);
+      if (intervalId) return; // déjà en cours, on ne relance pas par-dessus
+      attempts = 0; // nouveau cycle -> compteur remis à 0
+      intervalId = setInterval(pollUnread, POLL_DELAY);
     };
 
     const stopPolling = () => {
@@ -79,6 +93,8 @@ function Navbar() {
       }
     };
 
+    // 1er appel immédiat au chargement, puis cycle de 5x3s
+    fetchUnreadConversations();
     if (document.visibilityState === "visible") {
       startPolling();
     }
@@ -93,12 +109,18 @@ function Navbar() {
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    window.addEventListener("navbar-message-update", fetchUnreadConversations);
+    // Un événement "navbar-message-update" (ex: après l'envoi d'un message)
+    // déclenche un rafraîchissement immédiat + relance un nouveau cycle 5x3s
+    const handleNavbarUpdate = () => {
+      fetchUnreadConversations();
+      startPolling();
+    };
+    window.addEventListener("navbar-message-update", handleNavbarUpdate);
 
     return () => {
       stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("navbar-message-update", fetchUnreadConversations);
+      window.removeEventListener("navbar-message-update", handleNavbarUpdate);
     };
 
   }, []);

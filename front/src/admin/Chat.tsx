@@ -723,6 +723,7 @@ const Chat = () => {
                       ) : (
                         fakeSearchResults.map(account => (
                           <button
+                            type="button"
                             key={account.id}
                             onClick={() => { setSelectedAccount(account); setFakeSearchTerm(''); setFakeSearchResults([]); }}
                             className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center gap-3"
@@ -792,12 +793,11 @@ const Chat = () => {
                           if (u.id === selectedAccount?.id) return false;
                           // Exclure les comptes créés par l'admin
                           if (accounts.some(a => a.id === u.id)) return false;
-                          // Exclure les admins
-                          if (u.is_admin || u.isAdmin) return false;
                           return true;
                         })
                         .map((user: any) => (
                           <button
+                            type="button"
                             key={user.id}
                             onClick={() => {
                               setSelectedRealUser(user);
@@ -832,6 +832,7 @@ const Chat = () => {
             </div>
             <div className="p-4 shrink-0 rounded-b-2xl">
               <button
+                type="button"
                 onClick={async () => {
                   if (!selectedAccount || !selectedRealUser || !firstMessage.trim()) return;
                   await startNewConversation(selectedAccount, selectedRealUser, firstMessage);

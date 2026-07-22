@@ -111,6 +111,7 @@ function Home() {
   const [isGold, setIsGold] = useState<boolean>(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showMobileProfileInfo, setShowMobileProfileInfo] = useState(false);
+  const [isDisliking, setIsDisliking] = useState(false);
 
   const startX = useRef(0);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -140,7 +141,7 @@ function Home() {
   const formatImageUrl = (path: string | null) => {
     if (!path) return "https://cdn-icons-png.flaticon.com/512/149/149071.png";
     if (path.startsWith("http")) return path;
-    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    const cleanPath = path.replace(/^\/storage\//, '/').replace(/^\//, '');
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
     return `${cleanBase}${cleanPath}`;
   };
@@ -332,20 +333,19 @@ function Home() {
   };
 
   const handleDislike = async () => {
-    // Si un match est affiché, on le ferme d'abord sans passer au profil suivant
     if (showNotification && notificationType === "match") {
       setShowNotification(false);
       setMatchedProfile(null);
       return;
     }
-    if (isLiking || !currentProfile) return;
+    if (isLiking || isDisliking || !currentProfile) return;
+
+    setIsDisliking(true);
     try { await dislikeProfile(currentProfile.id); } catch (e) { }
     nextProfile();
+    setIsDisliking(false);
   };
 
-  // Ouvre la modale de message pour un profil donné, en s'assurant au
-  // préalable que l'échange (room de discussion) existe déjà entre les
-  // deux utilisateurs. S'il n'existe pas encore, il est créé automatiquement.
   const openMessageModalFor = async (profile: Profile | null) => {
     if (!profile) return;
 
@@ -631,7 +631,7 @@ function Home() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowMobileProfileInfo(true);
+                        navigate(`/profil/${currentProfile.id}`);
                       }}
                       className="absolute top-16 sm:top-20 right-4 sm:right-6 z-30 xl:hidden w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-xl text-white flex items-center justify-center border border-white/20"
                     >
@@ -641,17 +641,18 @@ function Home() {
 
                     {/* Overlay des informations (Nom, Age, Ville) + boutons d'action */}
                     <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 bg-gradient-to-t from-black/70 via-black/50 to-transparent text-white">
-                      <h1 className="text-2xl sm:text-4xl font-black">
-                        <span
+                      <h1 className="text-2xl sm:text-4xl font-black flex items-center gap-2">
+                        <span>{currentProfile.name}, {currentProfile.age}</span>
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate(`/profil/${currentProfile.id}`);
                           }}
-                          className="hover:underline cursor-pointer"
+                          className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-xs font-bold transition"
+                          title="Voir le profil"
                         >
-                          {currentProfile.name}
-                        </span>
-                        , {currentProfile.age}
+                          i
+                        </button>
                       </h1>
                       <p className="flex items-center gap-2 mt-1 font-bold opacity-90 text-sm sm:text-lg">
                         <FaMapMarkerAlt className="text-red-500 shrink-0" /> {currentProfile.location}
@@ -683,10 +684,17 @@ function Home() {
                       <div className="flex xl:hidden justify-center gap-5 mt-4">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDislike(); }}
-                          disabled={isLiking}
-                          className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 shadow-xl flex items-center justify-center text-white active:scale-90 transition-all duration-200 hover:bg-red-500/80 hover:border-red-400"
+                          disabled={isLiking || isDisliking}
+                          className={`w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 shadow-xl flex items-center justify-center text-white active:scale-90 transition-all duration-200 hover:bg-red-500/80 hover:border-red-400 ${isDisliking ? 'opacity-50' : ''}`}
                         >
-                          <FaTimes size={22} />
+                          {isDisliking ? (
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                          ) : (
+                            <FaTimes size={22} />
+                          )}
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); openMessageModalFor(currentProfile); }}
@@ -714,8 +722,15 @@ function Home() {
 
                   {/* Boutons d'action latéraux (desktop) */}
                   <div className="hidden xl:flex flex-col gap-6">
-                    <ActionButton type="x" onClick={handleDislike} disabled={isLiking}>
-                      <FaTimes size={25} />
+                    <ActionButton type="x" onClick={handleDislike} disabled={isLiking || isDisliking}>
+                      {isDisliking ? (
+                        <svg className="animate-spin h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                      ) : (
+                        <FaTimes size={25} />
+                      )}
                     </ActionButton>
                     <ActionButton type="message" onClick={() => openMessageModalFor(currentProfile)}>
                       <FaTelegramPlane size={25} />
